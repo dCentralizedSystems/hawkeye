@@ -2,8 +2,8 @@
 #define __SETTINGS_H
 
 // These should all be strings to be able to pass them through the option handler function
-#define DEFAULT_LOG_LEVEL "info"
-#define DEFAULT_PORT "8000"
+#define DEFAULT_LOG_LEVEL "warning"
+#define DEFAULT_PORT "9000"
 #define DEFAULT_FPS "5"
 #define DEFAULT_WIDTH "640"
 #define DEFAULT_HEIGHT "480"
