@@ -86,14 +86,6 @@ void init_settings(int argc, char *argv[]) {
     // Read command line options to get the location of the config file
     read_command_line(conf, argc, argv);
 
-    // Read config file
-    if ((settings.config_file == NULL) || strlen(settings.config_file) == 0) {
-        puts("You must specify a config file with the -c or --config option.\n");
-        print_usage();
-        exit(0);
-    }
-    read_config_file(conf, settings.config_file);
-
     // Read command line options again to overwrite config file values
     read_command_line(conf, argc, argv);
 
