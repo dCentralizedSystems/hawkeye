@@ -227,18 +227,18 @@ size_t compress_z16_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char* 
         int x;
         unsigned char *ptr = line_buffer;
 
-	for (x=0; x < width; ++x) {
-		unsigned short pix_in = src[0] | (src[1] << 8);
+        for (x=0; x < width; ++x) {
+            unsigned short pix_in = src[0] | (src[1] << 8);
 
-		/* Scale to one byte */
-		pix_in /= 20;
+        /* Scale to one byte */
+            pix_in /= 20;
 
-		if (pix_in > 255)
-			pix_in = 255;
+            if (pix_in > 255)
+                pix_in = 255;
 
-		*(ptr++) = (unsigned char)pix_in;
-		src += 2;
-	}
+            *(ptr++) = (unsigned char)pix_in;
+            src += 2;
+        }
 
         row_pointer[0] = line_buffer;
         jpeg_write_scanlines(&cinfo, row_pointer, 1);

@@ -168,7 +168,7 @@ struct video_device *create_video_device(char *device, int width, int height, in
             vd->framebuffer_size = vd->width * vd->height * 2;
             vd->framebuffer = (unsigned char *) malloc(vd->framebuffer_size);
             break;
-	case V4L2_PIX_FMT_Z16:
+    case V4L2_PIX_FMT_Z16:
             vd->framebuffer_size = vd->width * vd->height * 2;
             vd->framebuffer = (unsigned char *) malloc(vd->framebuffer_size);
             break;
@@ -441,7 +441,7 @@ size_t capture_frame(struct video_device *vd) {
                 memcpy(vd->framebuffer, vd->mem[vd->buf.index], vd->buf.bytesused);
             break;
 
-	case V4L2_PIX_FMT_Z16:
+    case V4L2_PIX_FMT_Z16:
             if (vd->buf.bytesused > vd->framebuffer_size)
                 memcpy(vd->framebuffer, vd->mem[vd->buf.index], vd->framebuffer_size);
             else
