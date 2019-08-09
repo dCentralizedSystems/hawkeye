@@ -199,3 +199,55 @@ size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char*
     return (written);
 }
 
+size_t compress_z16_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char* src, size_t src_size, unsigned int width, unsigned int height, int quality) {
+    struct jpeg_compress_struct cinfo;
+    struct jpeg_error_mgr jerr;
+    JSAMPROW row_pointer[1];
+    unsigned char *line_buffer;
+    static int written;
+
+    line_buffer = calloc(width, 1);
+
+    cinfo.err = jpeg_std_error(&jerr);
+    jpeg_create_compress(&cinfo);
+    /* jpeg_stdio_dest (&cinfo, file); */
+    dest_buffer(&cinfo, dst, dst_size, &written);
+
+    cinfo.image_width = width;
+    cinfo.image_height = height;
+    cinfo.input_components = 1;
+    cinfo.in_color_space = JCS_GRAYSCALE;
+
+    jpeg_set_defaults(&cinfo);
+    jpeg_set_quality(&cinfo, quality, TRUE);
+
+    jpeg_start_compress(&cinfo, TRUE);
+
+    while(cinfo.next_scanline < height) {
+        int x;
+        unsigned char *ptr = line_buffer;
+
+	for (x=0; x < width; ++x) {
+		unsigned short pix_in = src[0] | (src[1] << 8);
+
+		/* Scale to one byte */
+		pix_in /= 20;
+
+		if (pix_in > 255)
+			pix_in = 255;
+
+		*(ptr++) = (unsigned char)pix_in;
+		src += 2;
+	}
+
+        row_pointer[0] = line_buffer;
+        jpeg_write_scanlines(&cinfo, row_pointer, 1);
+    }
+
+    jpeg_finish_compress(&cinfo);
+    jpeg_destroy_compress(&cinfo);
+
+    free(line_buffer);
+
+    return (written);
+}

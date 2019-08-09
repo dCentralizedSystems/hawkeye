@@ -168,6 +168,10 @@ struct video_device *create_video_device(char *device, int width, int height, in
             vd->framebuffer_size = vd->width * vd->height * 2;
             vd->framebuffer = (unsigned char *) malloc(vd->framebuffer_size);
             break;
+	case V4L2_PIX_FMT_Z16:
+            vd->framebuffer_size = vd->width * vd->height * 2;
+            vd->framebuffer = (unsigned char *) malloc(vd->framebuffer_size);
+            break;
         default:
             user_panic("init_video_in: Unsupported format.");
             break;
@@ -246,6 +250,9 @@ int init_v4l2(struct video_device *vd) {
                 return -1;
             } else if (vd->format_in == V4L2_PIX_FMT_YUYV) {
                 log_itf(LOG_ERROR, "The input device %s does not supports YUV mode.", vd->device_filename);
+                return -1;
+            } else if (vd->format_in == V4L2_PIX_FMT_Z16) {
+                log_itf(LOG_ERROR, "The input device %s does not supports Z16 mode.", vd->device_filename);
                 return -1;
             }
         } else {
@@ -428,6 +435,13 @@ size_t capture_frame(struct video_device *vd) {
             break;
 
         case V4L2_PIX_FMT_YUYV:
+            if (vd->buf.bytesused > vd->framebuffer_size)
+                memcpy(vd->framebuffer, vd->mem[vd->buf.index], vd->framebuffer_size);
+            else
+                memcpy(vd->framebuffer, vd->mem[vd->buf.index], vd->buf.bytesused);
+            break;
+
+	case V4L2_PIX_FMT_Z16:
             if (vd->buf.bytesused > vd->framebuffer_size)
                 memcpy(vd->framebuffer, vd->mem[vd->buf.index], vd->framebuffer_size);
             else

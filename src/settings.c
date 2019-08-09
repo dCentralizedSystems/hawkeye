@@ -48,7 +48,7 @@ void print_usage() {
     fprintf(stdout, "devices is a : separated list of video devices, such as\n");
     fprintf(stdout, "for example \"/dev/video0:/dev/video1\".\n");
     fprintf(stdout, "log-level can be debug, info, warning, or error.\n");
-    fprintf(stdout, "format can be mjpeg (recommended) or yuv.\n");
+    fprintf(stdout, "format can be mjpeg (recommended), yuv, or z16.\n");
 }
 
 void init_settings(int argc, char *argv[]) {
@@ -110,6 +110,9 @@ void init_settings(int argc, char *argv[]) {
     settings.v4l2_format = V4L2_PIX_FMT_MJPEG;
     if (strcmp(v4l2_format, "yuv") == 0) {
         settings.v4l2_format = V4L2_PIX_FMT_YUYV;
+    }
+    if (strcmp(v4l2_format, "z16") == 0) {
+        settings.v4l2_format = V4L2_PIX_FMT_Z16;
     }
     
     // Parse video devices
