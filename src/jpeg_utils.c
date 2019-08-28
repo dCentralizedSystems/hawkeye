@@ -199,7 +199,7 @@ size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char*
     return (written);
 }
 
-size_t compress_z16_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char* src, size_t src_size, unsigned int width, unsigned int height, int quality) {
+size_t compress_z16_to_jpeg_and_depth_profile(unsigned char *dst, size_t dst_size, unsigned char* src, size_t src_size, unsigned int width, unsigned int height, int quality) {
     struct jpeg_compress_struct cinfo;
     struct jpeg_error_mgr jerr;
     JSAMPROW row_pointer[1];
@@ -223,24 +223,44 @@ size_t compress_z16_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char* 
 
     jpeg_start_compress(&cinfo, TRUE);
 
+    /* allocate storage for depth profile line and set to zero */
+    unsigned char *depth_profile = malloc(width);
+
+    /* Start with maximum values */
+    memset(depth_profile, 255, width);
+
     while(cinfo.next_scanline < height) {
         int x;
         unsigned char *ptr = line_buffer;
 
-        for (x=0; x < width; ++x) {
-            unsigned short pix_in = src[0] | (src[1] << 8);
+        /* Check for last row condition */
+        if (cinfo.next_scanline >= height - 1) {
+            row_pointer[0] = depth_profile;
+        } else {
+            /* Copy input pixels (two bytes each) into output pixels (one byte each) */
+            for (x=0; x < width; ++x) {
+                unsigned short pix_in = src[0] | (src[1] << 8);
+                unsigned char pix_byte = 0;
+    
+                /* Scale to one byte */
+                pix_in /= 20;
+    
+                if (pix_in > 255)
+                    pix_in = 255;
 
-        /* Scale to one byte */
-            pix_in /= 20;
+                pix_byte = (unsigned char)pix_in;
 
-            if (pix_in > 255)
-                pix_in = 255;
+                /* Update minima */
+                if (pix_byte > 10) {
+                    depth_profile[x] = (pix_byte < depth_profile[x]) ? pix_byte : depth_profile[x];
+                }
+    
+                *(ptr++) = pix_byte;
+                src += 2;
+            }
 
-            *(ptr++) = (unsigned char)pix_in;
-            src += 2;
+            row_pointer[0] = line_buffer;
         }
-
-        row_pointer[0] = line_buffer;
         jpeg_write_scanlines(&cinfo, row_pointer, 1);
     }
 
@@ -248,6 +268,7 @@ size_t compress_z16_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char* 
     jpeg_destroy_compress(&cinfo);
 
     free(line_buffer);
+    free(depth_profile);
 
     return (written);
 }
