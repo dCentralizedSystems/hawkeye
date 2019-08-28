@@ -31,6 +31,8 @@
 #include "jpeg_utils.h"
 #include "v4l2uvc.h"
 
+#include "logger.h"
+
 #define OUTPUT_BUF_SIZE  4096
 
 typedef struct {
@@ -199,6 +201,8 @@ size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char*
     return (written);
 }
 
+#define NUM_DEPTH_PROFILES (4)
+
 size_t compress_z16_to_jpeg_and_depth_profile(unsigned char *dst, size_t dst_size, unsigned char* src, size_t src_size, unsigned int width, unsigned int height, int quality) {
     struct jpeg_compress_struct cinfo;
     struct jpeg_error_mgr jerr;
@@ -224,18 +228,34 @@ size_t compress_z16_to_jpeg_and_depth_profile(unsigned char *dst, size_t dst_siz
     jpeg_start_compress(&cinfo, TRUE);
 
     /* allocate storage for depth profile line and set to zero */
-    unsigned char *depth_profile = malloc(width);
+    unsigned char *depth_profiles = malloc(width * NUM_DEPTH_PROFILES);
+
+    if (depth_profiles == NULL) {
+        log_itf(LOG_ERROR, "%s: can't allocate depth profile buffers", __func__);
+        return 0;
+    }
 
     /* Start with maximum values */
-    memset(depth_profile, 255, width);
+    memset(depth_profiles, 255, width * NUM_DEPTH_PROFILES);
+
+    /* Determine how many lines per depth profile */
+    size_t lines_per_depth_profile = (height-NUM_DEPTH_PROFILES) / NUM_DEPTH_PROFILES;
 
     while(cinfo.next_scanline < height) {
         int x;
         unsigned char *ptr = line_buffer;
+        size_t depth_profile_index = cinfo.next_scanline / lines_per_depth_profile;
 
-        /* Check for last row condition */
-        if (cinfo.next_scanline >= height - 1) {
-            row_pointer[0] = depth_profile;
+        /* There might be extra lines, due to the integer math, stick these in the last depth profile */
+        if (depth_profile_index >= NUM_DEPTH_PROFILES) {
+            depth_profile_index = NUM_DEPTH_PROFILES-1;
+        } 
+
+        size_t start_index = depth_profile_index * width;
+        
+        /* Check for writing depth profiles */
+        if (cinfo.next_scanline >= height - NUM_DEPTH_PROFILES) {
+            row_pointer[0] = &depth_profiles[width * (cinfo.next_scanline - (height - NUM_DEPTH_PROFILES))];
         } else {
             /* Copy input pixels (two bytes each) into output pixels (one byte each) */
             for (x=0; x < width; ++x) {
@@ -251,8 +271,8 @@ size_t compress_z16_to_jpeg_and_depth_profile(unsigned char *dst, size_t dst_siz
                 pix_byte = (unsigned char)pix_in;
 
                 /* Update minima */
-                if (pix_byte > 10) {
-                    depth_profile[x] = (pix_byte < depth_profile[x]) ? pix_byte : depth_profile[x];
+                if (pix_byte > 20) {
+                    depth_profiles[start_index + x] = (pix_byte < depth_profiles[start_index + x]) ? pix_byte : depth_profiles[start_index + x];
                 }
     
                 *(ptr++) = pix_byte;
@@ -268,7 +288,7 @@ size_t compress_z16_to_jpeg_and_depth_profile(unsigned char *dst, size_t dst_siz
     jpeg_destroy_compress(&cinfo);
 
     free(line_buffer);
-    free(depth_profile);
+    free(depth_profiles);
 
     return (written);
 }
