@@ -202,6 +202,9 @@ size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char*
 }
 
 #define NUM_DEPTH_PROFILES (4)
+#define PIX_MIN_DISTANCE_MM (20)
+#define PIX_MIN_VALUE       (0)
+#define PIX_MAX_VALUE       (255)
 
 size_t compress_z16_to_jpeg_and_depth_profile(unsigned char *dst, size_t dst_size, unsigned char* src, size_t src_size, unsigned int width, unsigned int height, int quality) {
     struct jpeg_compress_struct cinfo;
@@ -228,15 +231,12 @@ size_t compress_z16_to_jpeg_and_depth_profile(unsigned char *dst, size_t dst_siz
     jpeg_start_compress(&cinfo, TRUE);
 
     /* allocate storage for depth profile line and set to zero */
-    unsigned char *depth_profiles = malloc(width * NUM_DEPTH_PROFILES);
+    unsigned char *depth_profiles = calloc(width, NUM_DEPTH_PROFILES);
 
     if (depth_profiles == NULL) {
         log_itf(LOG_ERROR, "%s: can't allocate depth profile buffers", __func__);
         return 0;
     }
-
-    /* Start with maximum values */
-    memset(depth_profiles, 255, width * NUM_DEPTH_PROFILES);
 
     /* Determine how many lines per depth profile */
     size_t lines_per_depth_profile = (height-NUM_DEPTH_PROFILES) / NUM_DEPTH_PROFILES;
@@ -263,15 +263,19 @@ size_t compress_z16_to_jpeg_and_depth_profile(unsigned char *dst, size_t dst_siz
                 unsigned char pix_byte = 0;
     
                 /* Scale to one byte */
-                pix_in /= 20;
+                pix_in /= PIX_MIN_DISTANCE_MM;
     
-                if (pix_in > 255)
-                    pix_in = 255;
+                if (pix_in > PIX_MAX_VALUE)
+                    pix_in = PIX_MAX_VALUE;
 
                 pix_byte = (unsigned char)pix_in;
 
                 /* Update minima */
-                if (pix_byte > 20) {
+                if (pix_byte > PIX_MIN_DISTANCE_MM) {
+                    /* Smallest pixel value greater than 20 */
+                    if (depth_profiles[start_index + x] == PIX_MIN_VALUE && pix_byte < PIX_MAX_VALUE) {
+                        depth_profiles[start_index + x] = pix_byte;
+                    }    
                     depth_profiles[start_index + x] = (pix_byte < depth_profiles[start_index + x]) ? pix_byte : depth_profiles[start_index + x];
                 }
     
