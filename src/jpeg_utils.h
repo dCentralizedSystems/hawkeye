@@ -4,5 +4,6 @@
 
 size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char* src, size_t src_size, unsigned int width, unsigned int height, int quality);
 size_t compress_z16_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char* src, size_t src_size, unsigned int width, unsigned int height, int quality);
+void ground_plane_filter(unsigned char *depth_img, int width, int height, float view_height, float h_fov, float v_fov);
 
 #endif

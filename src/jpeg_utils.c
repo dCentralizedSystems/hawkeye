@@ -27,6 +27,7 @@
 #include <jpeglib.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 #include "jpeg_utils.h"
 #include "v4l2uvc.h"
@@ -251,3 +252,18 @@ size_t compress_z16_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char* 
 
     return (written);
 }
+
+void ground_plane_filter(unsigned char *depth_img, int width, int height, float view_height, float h_fov, float v_fov) {
+    for(int i = 0; i < (width * height); i++) {
+        int row = i / width;
+        int col = i % width;
+        float theta = abs((((float) col / width - 0.5) * h_fov) * M_PI / 180);
+        float phi = (((float) (row + 1) / height - 0.5) * v_fov) * M_PI / 180;
+        float ground_depth = view_height / sin(phi) / cos(theta);
+        unsigned char obs_depth = depth_img[i];
+        if (phi > 0 && (float) obs_depth - ground_depth > -1) {
+            depth_img[i] = 255;
+        }
+    }
+}
+

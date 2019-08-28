@@ -6,6 +6,7 @@
 #define CONFIG_BOOL 'b'
 #define CONFIG_INT 'i'
 #define CONFIG_STR 's'
+#define CONFIG_FLOAT 'f'
 
 struct config_item {
     signed char short_name;
