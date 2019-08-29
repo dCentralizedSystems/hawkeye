@@ -132,10 +132,14 @@ void grab_frame(struct frame_buffer *fb) {
                 frame_size = compress_yuyv_to_jpeg(buf, sizeof(buf), fb->vd->framebuffer, frame_size, fb->vd->width, fb->vd->height, fb->vd->jpeg_quality);
                 break;
        case V4L2_PIX_FMT_Z16:
+<<<<<<< HEAD
                 frame_size = compress_z16_to_jpeg(buf, sizeof(buf), fb->vd->framebuffer, frame_size, fb->vd->width, fb->vd->height, fb->vd->jpeg_quality);
                 if (settings.ground_filter) {
                     ground_plane_filter(buf, fb->vd->width, fb->vd->height, settings.view_height, settings.fov_horizontal, settings.fov_vertical);
                 }
+=======
+                frame_size = compress_z16_to_jpeg_and_depth_profile(buf, sizeof(buf), fb->vd->framebuffer, frame_size, fb->vd->width, fb->vd->height, fb->vd->jpeg_quality);
+>>>>>>> 26dd9d6f623903433992cb3ce731263cbd69d500
                 break;
             default:
                 panic("Video device is using unknown format.");

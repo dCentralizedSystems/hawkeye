@@ -88,7 +88,6 @@ static char get_key_by_name(struct config *con, char *name) {
 static void set_config_item_value(struct config_item *c, char *value) {
     switch (c->dst_type) {
         case CONFIG_BOOL:
-            printf("got bool: %c\n", value);
             *(short *) c->dst = (value == NULL || atoi(value) != 0);
             break;
         case CONFIG_STR:
@@ -140,7 +139,6 @@ struct config *create_config() {
 void add_config_item(struct config *con, signed char short_name, char *long_name, char dst_type, void *dst, char *default_value) {
     struct config_item *c;
 
-    printf("got config item: %s, default value = %s\n", long_name, default_value);
     if (con->items == NULL) {
         con->items = malloc(sizeof(struct config_item));
     }
