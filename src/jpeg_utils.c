@@ -308,8 +308,8 @@ void ground_plane_filter(unsigned char *depth_img, int width, size_t src_size, f
         float ground_depth = view_height / sin(phi) / cos(theta);
         unsigned short obs_depth = depth_img[i] | (depth_img[i + 1] << 8);
         if (phi > 0 && obs_depth >= ground_depth) {
-            depth_img[i] = 0;
-            depth_img[i + 1] = 0;
+            depth_img[i] = PIX_MAX_VALUE;
+            depth_img[i + 1] = PIX_MAX_VALUE;
         }
     }
 }
