@@ -26,6 +26,7 @@
 #define DEFAULT_VIEW_HEIGHT "0.0"
 #define DEFAULT_FOV_HORIZONTAL "0.0"
 #define DEFAULT_FOV_VERTICAL "0.0"
+#define DEFAULT_GROUND_PLANE_ERR_THRESHOLD "0.0"
 
 struct settings {
 	short run_in_background;
@@ -45,6 +46,7 @@ struct settings {
     float view_height;
     float fov_horizontal;
     float fov_vertical;
+    float ground_plane_err_threshold;
 	int width;
 	int height;
 	int jpeg_quality;
