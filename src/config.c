@@ -99,6 +99,7 @@ static void set_config_item_value(struct config_item *c, char *value) {
             break;
         case CONFIG_FLOAT:
             *(float *) c->dst = atof(value);
+            break;
     }
 }
 

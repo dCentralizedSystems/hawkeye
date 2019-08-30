@@ -1,0 +1,14 @@
+src/hawkeye \
+--host=10.1.10.71 \
+--port=9000 \
+--devices=/dev/video0 \
+--width=640 \
+--height=360 \
+--format=z16 \
+--quality=100 \
+--fps=6 \
+--ground-plane-filter \
+--view-height=1000 \
+--fov-horizontal=90 \
+--fov-vertical=180 \
+--log-level=info 

@@ -41,7 +41,7 @@ void print_usage() {
     fprintf(stdout, "       [--www-root=path] [--pid=path] [--log=path] [--user=user] [--group=group]\n");
     fprintf(stdout, "       [--fps=fps][--devices=video-devices] [--width=width] [--height=height]\n");
     fprintf(stdout, "       [--quality=quality] [--log-level=log-level] [--format=format]\n");
-    fprintf(stdout, "       [--ground-plane-filter=filter-option] [--view-height=height] [--fov-horizontal=fov-h] [--fov-vertical=fov-v]\n");
+    fprintf(stdout, "       [--ground-plane-filter] [--view-height=height] [--fov-horizontal=fov-h] [--fov-vertical=fov-v]\n");
     fprintf(stdout, "       [--auth=user:pass] [--cert=cert-file] [--key=key-file]\n");
 
     fprintf(stdout, "Usage: %s [-h]\n", program_name);
@@ -78,7 +78,7 @@ void init_settings(int argc, char *argv[]) {
     add_config_item(conf, 'C', "cert", CONFIG_STR, &settings.ssl_cert_file, DEFAULT_SSL_CERT_FILE);
     add_config_item(conf, 'k', "key", CONFIG_STR, &settings.ssl_key_file, DEFAULT_SSL_KEY_FILE);
     
-    add_config_item(conf, 'm', "ground-filter", CONFIG_BOOL, &settings.ground_filter, DEFAULT_GROUND_FILTER);
+    add_config_item(conf, 'm', "ground-plane-filter", CONFIG_BOOL, &settings.ground_filter, DEFAULT_GROUND_FILTER);
     add_config_item(conf, 's', "view-height", CONFIG_FLOAT, &settings.view_height, DEFAULT_VIEW_HEIGHT);
     add_config_item(conf, 'x', "fov-horizontal", CONFIG_FLOAT, &settings.fov_horizontal, DEFAULT_FOV_HORIZONTAL);
     add_config_item(conf, 'y', "fov-vertical", CONFIG_FLOAT, &settings.fov_vertical, DEFAULT_FOV_VERTICAL);

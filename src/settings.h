@@ -22,7 +22,7 @@
 #define DEFAULT_AUTH ""
 #define DEFAULT_SSL_CERT_FILE ""
 #define DEFAULT_SSL_KEY_FILE ""
-#define DEFAULT_GROUND_FILTER "true"
+#define DEFAULT_GROUND_FILTER "0"
 #define DEFAULT_VIEW_HEIGHT "0.0"
 #define DEFAULT_FOV_HORIZONTAL "0.0"
 #define DEFAULT_FOV_VERTICAL "0.0"
@@ -42,9 +42,9 @@ struct settings {
 	char *ssl_cert_file;
 	char *ssl_key_file;
     bool ground_filter;
-    int view_height;
-    int fov_horizontal;
-    int fov_vertical;
+    float view_height;
+    float fov_horizontal;
+    float fov_vertical;
 	int width;
 	int height;
 	int jpeg_quality;

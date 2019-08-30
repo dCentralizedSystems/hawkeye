@@ -208,6 +208,7 @@ size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char*
 #define PIX_MAX_VALUE       (255)
 
 size_t compress_z16_to_jpeg_and_depth_profile(unsigned char *dst, size_t dst_size, unsigned char* src, size_t src_size, unsigned int width, unsigned int height, int quality) {
+    printf("width=%d, height=%d, dst_size=%d, src_size=%d\n", width, height, dst_size, src_size);
     struct jpeg_compress_struct cinfo;
     struct jpeg_error_mgr jerr;
     JSAMPROW row_pointer[1];
@@ -298,17 +299,24 @@ size_t compress_z16_to_jpeg_and_depth_profile(unsigned char *dst, size_t dst_siz
     return (written);
 }
 
-void ground_plane_filter(unsigned char *depth_img, int width, int height, float view_height, float h_fov, float v_fov) {
-    for(int i = 0; i < (width * height); i++) {
+void ground_plane_filter(unsigned char *depth_img, int width, size_t src_size, float view_height, float h_fov, float v_fov) {
+    int height = src_size / width;
+    printf("dims = (%d, %d), %.2f\n", width, height, h_fov);
+    for(int i = 0; i < src_size - 1; i += 2) {
         int row = i / width;
         int col = i % width;
-        float theta = abs((((float) col / width - 0.5) * h_fov) * M_PI / 180);
-        float phi = (((float) (row + 1) / height - 0.5) * v_fov) * M_PI / 180;
+        float theta = fabs((((col + 1.0) / width - 0.5) * h_fov) * M_PI / 180);
+        float phi = ((row + 1.0) / height - 0.5) * v_fov * M_PI / 180;
         float ground_depth = view_height / sin(phi) / cos(theta);
-        unsigned char obs_depth = depth_img[i];
-        if (phi > 0 && (float) obs_depth - ground_depth > -1) {
-            depth_img[i] = 255;
+        unsigned short obs_depth = depth_img[i] | (depth_img[i + 1] << 8);
+        if (row == (int) (0.75 * height)) {
+            printf("(%d, %d) %d ", row, col, obs_depth);
+        }
+        if (phi > 0 && obs_depth >= ground_depth) {
+            depth_img[i] = 0;
+            depth_img[i + 1] = 0;
         }
     }
+    printf("\n\n");
 }
 
