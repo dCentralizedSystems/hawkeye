@@ -124,8 +124,11 @@ void grab_frame(struct frame_buffer *fb) {
     }
     else {
 
-        if (settings.ground_filter) {
-            ground_plane_filter(fb->vd->framebuffer, fb->vd->width, frame_size, settings.view_height, settings.fov_horizontal, settings.fov_vertical);
+        if (settings.ground_plane_filter && settings.high_depth_inversion) {
+            ground_plane_filter_high_depth_inversion(fb->vd->framebuffer, fb->vd->width, frame_size, settings.view_height, settings.fov_horizontal, settings.fov_vertical, 
+                settings.ground_plane_err_threshold);    
+        } else if (settings.ground_plane_filter) {
+            ground_plane_filter(fb->vd->framebuffer, fb->vd->width, frame_size, settings.view_height, settings.fov_horizontal, settings.fov_vertical, settings.ground_plane_err_threshold);
         }
 
         switch (fb->vd->format_in) {

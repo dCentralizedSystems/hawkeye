@@ -298,18 +298,48 @@ size_t compress_z16_to_jpeg_and_depth_profile(unsigned char *dst, size_t dst_siz
     return (written);
 }
 
-void ground_plane_filter(unsigned char *depth_img, int width, size_t src_size, float view_height, float h_fov, float v_fov) {
+void ground_plane_filter(unsigned char *depth_img, int width, size_t src_size, float view_height, float h_fov, float v_fov, float err_thresh) {
     int height = src_size / width;
     for(int i = 0; i < src_size - 1; i += 2) {
         int row = i / width;
         int col = i % width;
+
         float theta = fabs((((col + 1.0) / width - 0.5) * h_fov) * M_PI / 180);
         float phi = ((row + 1.0) / height - 0.5) * v_fov * M_PI / 180;
+
         float ground_depth = view_height / sin(phi) / cos(theta);
         unsigned short obs_depth = depth_img[i] | (depth_img[i + 1] << 8);
-        if (phi > 0 && obs_depth >= ground_depth) {
+
+        // in z16 every 2 bytes (pixels) represents a depth value
+        if (phi > 0 && obs_depth >= ground_depth - err_thresh) {
             depth_img[i] = PIX_MAX_VALUE;
             depth_img[i + 1] = PIX_MAX_VALUE;
+        }
+    }
+}
+
+
+void ground_plane_filter_high_depth_inversion(unsigned char *depth_img, int width, size_t src_size, float view_height, float h_fov, float v_fov, float err_thresh) {
+    int height = src_size / width;
+    for (int i = 0; i < src_size; i += 2) {
+        int row = i / width;
+        int col = i % width;
+
+        float theta = fabs((((col + 1.0) / width - 0.5) * h_fov) * M_PI / 180);
+        float phi = ((row + 1.0) / height - 0.5) * v_fov * M_PI / 180;
+
+        float ground_depth = view_height / sin(phi) / cos(theta);
+        unsigned short obs_depth = depth_img[i] | (depth_img[i + 1] << 8);
+
+        float delta_depth = obs_depth - ground_depth;
+
+        if (phi > 0 && fabs(delta_depth) <= err_thresh) {
+            depth_img[i] = PIX_MAX_VALUE;
+            depth_img[i + 1] = PIX_MAX_VALUE;
+        } else if (phi > 0 && delta_depth > err_thresh) {
+            unsigned short inv_depth = (unsigned short) (ground_depth - err_thresh);
+            depth_img[i] = (unsigned char) (inv_depth & 0xff00);
+            depth_img[i + 1] = inv_depth >> 8; 
         }
     }
 }
