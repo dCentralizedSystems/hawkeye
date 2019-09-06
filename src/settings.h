@@ -27,6 +27,7 @@
 #define DEFAULT_VIEW_HEIGHT "0.0"
 #define DEFAULT_FOV_HORIZONTAL "0.0"
 #define DEFAULT_FOV_VERTICAL "0.0"
+#define DEFAULT_PITCH "0.0"
 #define DEFAULT_GROUND_PLANE_ERR_THRESHOLD "0.0"
 
 struct settings {
@@ -43,16 +44,18 @@ struct settings {
 	char *auth;
 	char *ssl_cert_file;
 	char *ssl_key_file;
+	int width;
+	int height;
+	int jpeg_quality;
+	
     bool ground_plane_filter;
     bool high_depth_inversion;
     float view_height;
     float fov_horizontal;
     float fov_vertical;
+    float pitch;
     float ground_plane_err_threshold;
-	int width;
-	int height;
-	int jpeg_quality;
-	
+
     int log_level;
 	int v4l2_format;
 	int video_device_count;

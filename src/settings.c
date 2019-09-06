@@ -35,7 +35,8 @@ void print_usage() {
     fprintf(stdout, "       [-l logfile] [-u user] [-g group] [-F fps] [-D video-devices] [-W width]\n");
     fprintf(stdout, "       [-G height] [-j jpeg-quality] [-L log-level] [-f format] [-A user:pass]\n");
     fprintf(stdout, "       [-m ground-plane-filter] [-i high-depth-inversion] [-s view-height-mm]\n");
-    fprintf(stdout, "       [-x fov-horizontal-deg] [-y fov-vertical-deg] [-t ground-plane-error-threshold-mm]\n");
+    fprintf(stdout, "       [-x fov-horizontal-deg] [-y fov-vertical-deg]\n");
+    fprintf(stdout, "       [-t ground-plane-error-threshold-mm] [-b pitch-deg]\n");
     fprintf(stdout, "       [-C cert-file] [-k key-file]\n");
     fprintf(stdout, "\n");
     fprintf(stdout, "Usage: %s [--daemon] [--config=path] [--host=host] [--port=port]\n", program_name);
@@ -43,7 +44,8 @@ void print_usage() {
     fprintf(stdout, "       [--fps=fps][--devices=video-devices] [--width=width] [--height=height]\n");
     fprintf(stdout, "       [--quality=quality] [--log-level=log-level] [--format=format]\n");
     fprintf(stdout, "       [--ground-plane-filter] [--high-depth-inversion] [--view-height-mm=height]\n");
-    fprintf(stdout, "       [--fov-horizontal-deg=fov-h] [--fov-vertical-deg=fov-v] [--ground-plane-error-threshold-mm=err-threh]\n"); 
+    fprintf(stdout, "       [--fov-horizontal-deg=fov-h] [--fov-vertical-deg=fov-v]\n"); 
+    fprintf(stdout, "       [--ground-plane-error-threshold-mm=err-thresh] [--pitch-deg=pitch]\n");
     fprintf(stdout, "       [--auth=user:pass] [--cert=cert-file] [--key=key-file]\n");
 
     fprintf(stdout, "Usage: %s [-h]\n", program_name);
@@ -85,6 +87,7 @@ void init_settings(int argc, char *argv[]) {
     add_config_item(conf, 's', "view-height-mm", CONFIG_FLOAT, &settings.view_height, DEFAULT_VIEW_HEIGHT);
     add_config_item(conf, 'x', "fov-horizontal-deg", CONFIG_FLOAT, &settings.fov_horizontal, DEFAULT_FOV_HORIZONTAL);
     add_config_item(conf, 'y', "fov-vertical-deg", CONFIG_FLOAT, &settings.fov_vertical, DEFAULT_FOV_VERTICAL);
+    add_config_item(conf, 'b', "pitch-deg", CONFIG_FLOAT, &settings.pitch, DEFAULT_PITCH);
     add_config_item(conf, 't', "ground-plane-error-threshold-mm", CONFIG_FLOAT, &settings.ground_plane_err_threshold, DEFAULT_GROUND_PLANE_ERR_THRESHOLD);
 
     add_config_item(conf, 'L', "log-level", CONFIG_STR, &log_level, DEFAULT_LOG_LEVEL);

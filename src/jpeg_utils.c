@@ -305,8 +305,7 @@ void ground_plane_filter(unsigned char *depth_img, int width, size_t src_size, f
         int col = i % width;
 
         float theta = fabs((((col + 1.0) / width - 0.5) * h_fov) * M_PI / 180);
-        float phi = ((row + 1.0) / height - 0.5) * v_fov * M_PI / 180;
-        phi += pitch;
+        float phi = ((row + 1.0) / height - 0.5) * v_fov * M_PI / 180 + pitch;
 
         float ground_depth = view_height / sin(phi) / cos(theta);
         unsigned short obs_depth = depth_img[i] | (depth_img[i + 1] << 8);
@@ -327,8 +326,7 @@ void ground_plane_filter_high_depth_inversion(unsigned char *depth_img, int widt
         int col = i % width;
 
         float theta = fabs((((col + 1.0) / width - 0.5) * h_fov) * M_PI / 180);
-        float phi = ((row + 1.0) / height - 0.5) * v_fov * M_PI / 180;
-        phi += pitch;
+        float phi = ((row + 1.0) / height - 0.5) * v_fov * M_PI / 180 + pitch;
 
         float ground_depth = view_height / sin(phi) / cos(theta);
         unsigned short obs_depth = depth_img[i] | (depth_img[i + 1] << 8);
