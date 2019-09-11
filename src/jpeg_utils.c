@@ -206,7 +206,7 @@ size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char*
 #define PIX_MIN_VALUE       (0)
 #define PIX_MAX_VALUE       (255)
 
-size_t compress_z16_to_jpeg_and_depth_profile(unsigned char *dst, size_t dst_size, unsigned char* src, size_t src_size, unsigned int width, unsigned int height, int quality) {
+size_t compress_z16_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char* src, size_t src_size, unsigned int width, unsigned int height, int quality) {
     struct jpeg_compress_struct cinfo;
     struct jpeg_error_mgr jerr;
     JSAMPROW row_pointer[1];
@@ -230,61 +230,28 @@ size_t compress_z16_to_jpeg_and_depth_profile(unsigned char *dst, size_t dst_siz
 
     jpeg_start_compress(&cinfo, TRUE);
 
-    /* allocate storage for depth profile line and set to zero */
-    unsigned char *depth_profiles = calloc(width, NUM_DEPTH_PROFILES);
-
-    if (depth_profiles == NULL) {
-        log_itf(LOG_ERROR, "%s: can't allocate depth profile buffers", __func__);
-        return 0;
-    }
-
-    /* Determine how many lines per depth profile */
-    size_t lines_per_depth_profile = (height-NUM_DEPTH_PROFILES) / NUM_DEPTH_PROFILES;
-
     while(cinfo.next_scanline < height) {
         int x;
         unsigned char *ptr = line_buffer;
-        size_t depth_profile_index = cinfo.next_scanline / lines_per_depth_profile;
 
-        /* There might be extra lines, due to the integer math, stick these in the last depth profile */
-        if (depth_profile_index >= NUM_DEPTH_PROFILES) {
-            depth_profile_index = NUM_DEPTH_PROFILES-1;
-        } 
-
-        size_t start_index = depth_profile_index * width;
-        
-        /* Check for writing depth profiles */
-        if (cinfo.next_scanline >= height - NUM_DEPTH_PROFILES) {
-            row_pointer[0] = &depth_profiles[width * (cinfo.next_scanline - (height - NUM_DEPTH_PROFILES))];
-        } else {
-            /* Copy input pixels (two bytes each) into output pixels (one byte each) */
-            for (x=0; x < width; ++x) {
-                unsigned short pix_in = src[0] | (src[1] << 8);
-                unsigned char pix_byte = 0;
+        /* Copy input pixels (two bytes each) into output pixels (one byte each) */
+        for (x=0; x < width; ++x) {
+            unsigned short pix_in = src[0] | (src[1] << 8);
+            unsigned char pix_byte = 0;
     
-                /* Scale to one byte */
-                pix_in /= PIX_MIN_DISTANCE_MM;
-    
-                if (pix_in > PIX_MAX_VALUE)
-                    pix_in = PIX_MAX_VALUE;
+            /* Scale to one byte */
+            pix_in /= PIX_MIN_DISTANCE_MM;
+   
+            if (pix_in > PIX_MAX_VALUE)
+                pix_in = PIX_MAX_VALUE;
 
-                pix_byte = (unsigned char)pix_in;
+            pix_byte = (unsigned char)pix_in;
 
-                /* Update minima */
-                if (pix_byte > PIX_MIN_DISTANCE_MM) {
-                    /* Smallest pixel value greater than 20 */
-                    if (depth_profiles[start_index + x] == PIX_MIN_VALUE && pix_byte < PIX_MAX_VALUE) {
-                        depth_profiles[start_index + x] = pix_byte;
-                    }    
-                    depth_profiles[start_index + x] = (pix_byte < depth_profiles[start_index + x]) ? pix_byte : depth_profiles[start_index + x];
-                }
-    
-                *(ptr++) = pix_byte;
-                src += 2;
-            }
-
-            row_pointer[0] = line_buffer;
+            *(ptr++) = pix_byte;
+            src += 2;
         }
+
+        row_pointer[0] = line_buffer;
         jpeg_write_scanlines(&cinfo, row_pointer, 1);
     }
 
@@ -292,7 +259,6 @@ size_t compress_z16_to_jpeg_and_depth_profile(unsigned char *dst, size_t dst_siz
     jpeg_destroy_compress(&cinfo);
 
     free(line_buffer);
-    free(depth_profiles);
 
     return (written);
 }
