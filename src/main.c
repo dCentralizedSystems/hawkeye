@@ -114,43 +114,35 @@ void destroy_frame_buffers(struct frame_buffers *fbs) {
 }
 
 void write_frame(struct frame_buffer *fb, void *data, size_t data_len) {
-    static int mjpeg_file_num = 0;
-    static int yuyv_file_num = 0;
-    static int z16_file_num = 0;
 
-    static char out_file_path[256] = {0};
+    static char out_file_path[128] = {0};
+    static char temp_out_file_path[128] = {0};
 
-    memset(out_file_path, 0, 256 );
+    memset(out_file_path, 0, 128);
+    memset(temp_out_file_path, 0, 128);
 
-    switch (fb->vd->format_in) {
-        case V4L2_PIX_FMT_MJPEG:
-            sprintf(out_file_path, "%s/%s-%d.jpg", settings.file_root, settings.base_file_name, mjpeg_file_num);
-            mjpeg_file_num = (mjpeg_file_num != 0) ? 0 : 1;
-            break;
-        case V4L2_PIX_FMT_YUYV:
-            sprintf(out_file_path, "%s/%s-%d.jpg", settings.file_root, settings.base_file_name, yuyv_file_num);
-            yuyv_file_num = (yuyv_file_num != 0) ? 0 : 1;
-            break;
-        case V4L2_PIX_FMT_Z16:
-            sprintf(out_file_path, "%s/%s-%d.jpg", settings.file_root, settings.base_file_name, z16_file_num);
-            z16_file_num = (z16_file_num != 0) ? 0 : 1;
-            break;
-        default:
-        panic("Video device is using unknown format.");
-        break;
+    sprintf(temp_out_file_path, "%s/%s.jpg~", settings.file_root, settings.base_file_name);
+    sprintf(out_file_path, "%s/%s.jpg", settings.file_root, settings.base_file_name);
+
+    /* Only write files for specific formats */
+    if (fb->vd->format_in == V4L2_PIX_FMT_MJPEG ||
+	    fb->vd->format_in == V4L2_PIX_FMT_YUYV ||
+	    fb->vd->format_in == V4L2_PIX_FMT_Z16) {
+    	/* Open and write the file */
+    	FILE* p_file = fopen(temp_out_file_path, "w+");
+
+    	if (p_file == NULL) {
+        	panic("Can't write output image file.");
+       	 	return;
+    	}
+
+    	fwrite(data, data_len, 1, p_file);
+    	fflush(p_file);
+    	fclose(p_file);
+
+    /* Now that write is complete, rename the file */
+    	rename(temp_out_file_path, out_file_path);
     }
-
-    /* Open and write the file */
-    FILE* p_file = fopen(out_file_path, "w+");
-
-    if (p_file == NULL) {
-        panic("Can't write output image file.");
-        return;
-    }
-
-    fwrite(data, data_len, 1, p_file);
-    fflush(p_file);
-    fclose(p_file);
 }
 
 void grab_frame(struct frame_buffer *fb) {
