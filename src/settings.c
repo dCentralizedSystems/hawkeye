@@ -35,12 +35,15 @@ void print_usage() {
     fprintf(stdout, "       [-l logfile] [-u user] [-g group] [-F fps] [-D video-devices] [-W width]\n");
     fprintf(stdout, "       [-G height] [-j jpeg-quality] [-L log-level] [-f format] [-A user:pass]\n");
     fprintf(stdout, "       [-C cert-file] [-k key-file]\n");
+    fprintf(stdout, "       [-r file-root] [-b base_file_name]\n");
     fprintf(stdout, "\n");
     fprintf(stdout, "Usage: %s [--daemon] [--config=path] [--host=host] [--port=port]\n", program_name);
     fprintf(stdout, "       [--www-root=path] [--pid=path] [--log=path] [--user=user] [--group=group]\n");
     fprintf(stdout, "       [--fps=fps][--devices=video-devices] [--width=width] [--height=height]\n");
     fprintf(stdout, "       [--quality=quality] [--log-level=log-level] [--format=format]\n");
     fprintf(stdout, "       [--auth=user:pass] [--cert=cert-file] [--key=key-file]\n");
+    fprintf(stdout, "       [--file-root=file-root] [--base-file-name=base-file-name]\n");
+
 
     fprintf(stdout, "Usage: %s [-h]\n", program_name);
     fprintf(stdout, "Usage: %s [-v]\n", program_name);
@@ -75,6 +78,8 @@ void init_settings(int argc, char *argv[]) {
     add_config_item(conf, 'A', "auth", CONFIG_STR, &settings.auth, DEFAULT_AUTH);
     add_config_item(conf, 'C', "cert", CONFIG_STR, &settings.ssl_cert_file, DEFAULT_SSL_CERT_FILE);
     add_config_item(conf, 'k', "key", CONFIG_STR, &settings.ssl_key_file, DEFAULT_SSL_KEY_FILE);
+    add_config_item(conf, 'r', "file-root", CONFIG_STR, &settings.file_root, DEFAULT_FILE_ROOT);
+    add_config_item(conf, 'b', "base-file-name", CONFIG_STR, &settings.base_file_name, DEFAULT_BASE_FILE_NAME);
     
     add_config_item(conf, 'L', "log-level", CONFIG_STR, &log_level, DEFAULT_LOG_LEVEL);
     add_config_item(conf, 'f', "format", CONFIG_STR, &v4l2_format, DEFAULT_V4L2_FORMAT);
@@ -138,6 +143,7 @@ void init_settings(int argc, char *argv[]) {
     settings.fps = max(1, min(50, settings.fps));
 
     normalize_path(&settings.static_root, "The www-root you specified does not exist");
+    normalize_path(&settings.file_root, "The file-root you specified does not exist");
     normalize_path(&settings.ssl_cert_file, "The SSL certificate file you specified does not exist");
     normalize_path(&settings.ssl_key_file, "The SSL private key file you specified does not exist");
 

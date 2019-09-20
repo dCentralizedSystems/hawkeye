@@ -113,6 +113,46 @@ void destroy_frame_buffers(struct frame_buffers *fbs) {
     free(fbs);
 }
 
+void write_frame(struct frame_buffer *fb, void *data, size_t data_len) {
+    static int mjpeg_file_num = 0;
+    static int yuyv_file_num = 0;
+    static int z16_file_num = 0;
+
+    static char out_file_path[256] = {0};
+
+    memset(out_file_path, 0, 256 );
+
+    switch (fb->vd->format_in) {
+        case V4L2_PIX_FMT_MJPEG:
+            sprintf(out_file_path, "%s/%s-%d.jpg", settings.file_root, settings.base_file_name, mjpeg_file_num);
+            mjpeg_file_num = (mjpeg_file_num != 0) ? 0 : 1;
+            break;
+        case V4L2_PIX_FMT_YUYV:
+            sprintf(out_file_path, "%s/%s-%d.jpg", settings.file_root, settings.base_file_name, yuyv_file_num);
+            yuyv_file_num = (yuyv_file_num != 0) ? 0 : 1;
+            break;
+        case V4L2_PIX_FMT_Z16:
+            sprintf(out_file_path, "%s/%s-%d.jpg", settings.file_root, settings.base_file_name, z16_file_num);
+            z16_file_num = (z16_file_num != 0) ? 0 : 1;
+            break;
+        default:
+        panic("Video device is using unknown format.");
+        break;
+    }
+
+    /* Open and write the file */
+    FILE* p_file = fopen(out_file_path, "w+");
+
+    if (p_file == NULL) {
+        panic("Can't write output image file.");
+        return;
+    }
+
+    fwrite(data, data_len, 1, p_file);
+    fflush(p_file);
+    fclose(p_file);
+}
+
 void grab_frame(struct frame_buffer *fb) {
     unsigned char buf[fb->vd->framebuffer_size];
     size_t frame_size = 0;
@@ -139,6 +179,8 @@ void grab_frame(struct frame_buffer *fb) {
                 break;
         }
     }
+
+    write_frame(fb, buf, frame_size);
 
     requeue_device_buffer(fb->vd);
 
