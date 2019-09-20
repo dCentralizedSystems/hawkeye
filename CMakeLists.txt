@@ -44,3 +44,6 @@ add_executable(hawkeye
         src/version.h)
 
 target_link_libraries(hawkeye jpeg v4l2 ssl crypto)
+
+install(TARGETS hawkeye DESTINATION bin PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+
