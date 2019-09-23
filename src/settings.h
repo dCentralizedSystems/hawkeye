@@ -20,6 +20,8 @@
 #define DEFAULT_AUTH ""
 #define DEFAULT_SSL_CERT_FILE ""
 #define DEFAULT_SSL_KEY_FILE ""
+#define DEFAULT_FILE_ROOT "."
+#define DEFAULT_BASE_FILE_NAME "image"
 
 struct settings {
 	short run_in_background;
@@ -38,8 +40,9 @@ struct settings {
 	int width;
 	int height;
 	int jpeg_quality;
-	
-    int log_level;
+	char *file_root;
+	char *base_file_name;
+    	int log_level;
 	int v4l2_format;
 	int video_device_count;
 	char **video_device_files;

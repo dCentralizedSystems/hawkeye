@@ -113,6 +113,38 @@ void destroy_frame_buffers(struct frame_buffers *fbs) {
     free(fbs);
 }
 
+void write_frame(struct frame_buffer *fb, void *data, size_t data_len) {
+
+    static char out_file_path[128] = {0};
+    static char temp_out_file_path[128] = {0};
+
+    memset(out_file_path, 0, 128);
+    memset(temp_out_file_path, 0, 128);
+
+    sprintf(temp_out_file_path, "%s/%s.jpg~", settings.file_root, settings.base_file_name);
+    sprintf(out_file_path, "%s/%s.jpg", settings.file_root, settings.base_file_name);
+
+    /* Only write files for specific formats */
+    if (fb->vd->format_in == V4L2_PIX_FMT_MJPEG ||
+	    fb->vd->format_in == V4L2_PIX_FMT_YUYV ||
+	    fb->vd->format_in == V4L2_PIX_FMT_Z16) {
+    	/* Open and write the file */
+    	FILE* p_file = fopen(temp_out_file_path, "w+");
+
+    	if (p_file == NULL) {
+        	panic("Can't write output image file.");
+       	 	return;
+    	}
+
+    	fwrite(data, data_len, 1, p_file);
+    	fflush(p_file);
+    	fclose(p_file);
+
+    /* Now that write is complete, rename the file */
+    	rename(temp_out_file_path, out_file_path);
+    }
+}
+
 void grab_frame(struct frame_buffer *fb) {
     unsigned char buf[fb->vd->framebuffer_size];
     size_t frame_size = 0;
@@ -139,6 +171,8 @@ void grab_frame(struct frame_buffer *fb) {
                 break;
         }
     }
+
+    write_frame(fb, buf, frame_size);
 
     requeue_device_buffer(fb->vd);
 
