@@ -13,4 +13,5 @@ debian/hawkeye.prerm.debhelper
 debian/hawkeye.substvars
 debian/hawkeye/
 debian/files
+build/
 
