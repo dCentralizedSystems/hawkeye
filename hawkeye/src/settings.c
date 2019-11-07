@@ -43,6 +43,7 @@ void print_usage() {
     fprintf(stdout, "       [--quality=quality] [--log-level=log-level] [--format=format]\n");
     fprintf(stdout, "       [--auth=user:pass] [--cert=cert-file] [--key=key-file]\n");
     fprintf(stdout, "       [--file-root=file-root] [--base-file-name=base-file-name]\n");
+    fprintf(stdout, "       [--apriltag-detect]\n");
 
 
     fprintf(stdout, "Usage: %s [-h]\n", program_name);
@@ -80,6 +81,7 @@ void init_settings(int argc, char *argv[]) {
     add_config_item(conf, 'k', "key", CONFIG_STR, &settings.ssl_key_file, DEFAULT_SSL_KEY_FILE);
     add_config_item(conf, 'r', "file-root", CONFIG_STR, &settings.file_root, DEFAULT_FILE_ROOT);
     add_config_item(conf, 'b', "base-file-name", CONFIG_STR, &settings.base_file_name, DEFAULT_BASE_FILE_NAME);
+    add_config_item(conf, 'a', "apriltag-detect", CONFIG_BOOL, &settings.apriltag_detect, "0");
     
     add_config_item(conf, 'L', "log-level", CONFIG_STR, &log_level, DEFAULT_LOG_LEVEL);
     add_config_item(conf, 'f', "format", CONFIG_STR, &v4l2_format, DEFAULT_V4L2_FORMAT);

@@ -134,19 +134,18 @@ Input Value.: video structure from v4l2uvc.c/h, destination buffer and buffersiz
               the buffer must be large enough, no error/size checking is done!
 Return Value: the buffer will contain the compressed data
 ******************************************************************************/
-size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char* src, size_t src_size, unsigned int width, unsigned int height, int quality) {
+size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char* src, size_t src_size, unsigned int width, unsigned int height, int quality, const unsigned char* comment, unsigned int comment_len) {
     struct jpeg_compress_struct cinfo;
     struct jpeg_error_mgr jerr;
-    JSAMPROW row_pointer[1];
-    unsigned char *line_buffer;
+    JSAMPROW row_pointer[height];
+    unsigned char *frame_buffer;
     int z;
     static int written;
 
-    line_buffer = calloc(width * 3, 1);
+    frame_buffer = calloc(width * 3 * height, 1);
 
     cinfo.err = jpeg_std_error(&jerr);
     jpeg_create_compress(&cinfo);
-    /* jpeg_stdio_dest (&cinfo, file); */
     dest_buffer(&cinfo, dst, dst_size, &written);
 
     cinfo.image_width = width;
@@ -159,10 +158,13 @@ size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char*
 
     jpeg_start_compress(&cinfo, TRUE);
 
+    unsigned char *ptr = frame_buffer;
+
     z = 0;
-    while(cinfo.next_scanline < height) {
+    for (size_t line=0; line < height; ++line) {
         int x;
-        unsigned char *ptr = line_buffer;
+	
+	row_pointer[line] = ptr;
 
         for(x = 0; x < width; x++) {
             int r, g, b;
@@ -188,15 +190,19 @@ size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char*
                 src += 4;
             }
         }
-
-        row_pointer[0] = line_buffer;
-        jpeg_write_scanlines(&cinfo, row_pointer, 1);
     }
+
+    /* Write JPEG COM marker and data, if specified */
+    if (comment_len > 0 && comment != NULL) {
+	jpeg_write_marker(&cinfo, JPEG_COM, comment, comment_len);
+    }
+
+    jpeg_write_scanlines(&cinfo, row_pointer, height);
 
     jpeg_finish_compress(&cinfo);
     jpeg_destroy_compress(&cinfo);
 
-    free(line_buffer);
+    free(frame_buffer);
 
     return (written);
 }
@@ -206,7 +212,7 @@ size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char*
 #define PIX_MIN_VALUE       (0)
 #define PIX_MAX_VALUE       (255)
 
-size_t compress_z16_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char* src, size_t src_size, unsigned int width, unsigned int height, int quality) {
+size_t compress_z16_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char* src, size_t src_size, unsigned int width, unsigned int height, int quality, const unsigned char* comment, unsigned int comment_len) {
     struct jpeg_compress_struct cinfo;
     struct jpeg_error_mgr jerr;
     JSAMPROW row_pointer[1];
@@ -229,6 +235,11 @@ size_t compress_z16_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char* 
     jpeg_set_quality(&cinfo, quality, TRUE);
 
     jpeg_start_compress(&cinfo, TRUE);
+
+    /* Write JPEG COM marker and data, if specified */
+    if (comment_len > 0 && (comment != NULL)) {
+	jpeg_write_marker(&cinfo, JPEG_COM, comment, comment_len);
+    }
 
     while(cinfo.next_scanline < height) {
         int x;

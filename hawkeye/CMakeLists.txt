@@ -41,7 +41,9 @@ add_executable(hawkeye
         src/v4l2uvc.c
         src/v4l2uvc.h
         src/version.c
-        src/version.h)
+        src/version.h
+	src/apriltag_process.c
+	src/apriltag_process.h)
 
 target_link_libraries(hawkeye jpeg v4l2 ssl crypto)
 

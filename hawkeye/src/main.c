@@ -19,6 +19,7 @@
 #include "utils.h"
 #include "daemon.h"
 #include "settings.h"
+#include "apriltag_process.h"
 
 #define FRAME_BUFFER_LENGTH 8
 #define HTTP_TIMEOUT 0.01
@@ -140,7 +141,7 @@ void write_frame(struct frame_buffer *fb, void *data, size_t data_len) {
     	fflush(p_file);
     	fclose(p_file);
 
-    /* Now that write is complete, rename the file */
+    	/* Now that write is complete, rename the file */
     	rename(temp_out_file_path, out_file_path);
     }
 }
@@ -148,28 +149,41 @@ void write_frame(struct frame_buffer *fb, void *data, size_t data_len) {
 void grab_frame(struct frame_buffer *fb) {
     unsigned char buf[fb->vd->framebuffer_size];
     size_t frame_size = 0;
-
+    char* comment = NULL;
+    unsigned int comment_len = 0;
+    
     frame_size = capture_frame(fb->vd);
 
     if (frame_size <= 0) {
         log_it(LOG_ERROR, "Could not capture frame.");
     }
     else {
+	/* Apply any reqeusted pre-processing */
+	if (settings.apriltag_detect != 0) {
+	    comment = apriltag_process(fb->vd->format_in, buf, sizeof(buf));
+	    comment_len = strlen(comment);
+	}
 
+	/* Process by input format type (output type is always JPEG) */
         switch (fb->vd->format_in) {
             case V4L2_PIX_FMT_MJPEG:
                 frame_size = copy_frame(buf, sizeof(buf), fb->vd->framebuffer, frame_size);
                 break;
             case V4L2_PIX_FMT_YUYV:
-                frame_size = compress_yuyv_to_jpeg(buf, sizeof(buf), fb->vd->framebuffer, frame_size, fb->vd->width, fb->vd->height, fb->vd->jpeg_quality);
+                frame_size = compress_yuyv_to_jpeg(buf, sizeof(buf), fb->vd->framebuffer, frame_size, fb->vd->width, fb->vd->height, fb->vd->jpeg_quality, (unsigned char*)comment, comment_len);
                 break;
-       case V4L2_PIX_FMT_Z16:
-                frame_size = compress_z16_to_jpeg(buf, sizeof(buf), fb->vd->framebuffer, frame_size, fb->vd->width, fb->vd->height, fb->vd->jpeg_quality);
+       	    case V4L2_PIX_FMT_Z16:
+                frame_size = compress_z16_to_jpeg(buf, sizeof(buf), fb->vd->framebuffer, frame_size, fb->vd->width, fb->vd->height, fb->vd->jpeg_quality, (unsigned char*)comment, comment_len);
                 break;
             default:
                 panic("Video device is using unknown format.");
                 break;
         }
+
+	/* Clean up comment */
+	if (comment != NULL) {
+	    free(comment);
+	}
     }
 
     write_frame(fb, buf, frame_size);
