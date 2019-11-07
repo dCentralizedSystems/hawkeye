@@ -160,7 +160,7 @@ void grab_frame(struct frame_buffer *fb) {
     else {
 	/* Apply any reqeusted pre-processing */
 	if (settings.apriltag_detect != 0) {
-	    comment = apriltag_process(fb->vd->format_in, buf, sizeof(buf));
+	    comment = apriltag_process(fb->vd->format_in, fb->vd->width, fb->vd->height, buf, sizeof(buf));
 	    comment_len = strlen(comment);
 	}
 

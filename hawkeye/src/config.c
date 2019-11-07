@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <getopt.h>
+#include "/usr/include/getopt.h"
 
 #include "memory.h"
 #include "utils.h"

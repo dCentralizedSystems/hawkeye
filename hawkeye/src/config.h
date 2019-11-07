@@ -1,7 +1,7 @@
 #ifndef __CONFIG_H
 #define __CONFIG_H
 
-#include <getopt.h>
+#include "/usr/include/getopt.h"
 
 #define CONFIG_BOOL 'b'
 #define CONFIG_INT 'i'
