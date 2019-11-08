@@ -141,14 +141,16 @@ size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char*
     struct jpeg_compress_struct cinfo;
     struct jpeg_error_mgr jerr;
     JSAMPROW row_pointer[height];
-    unsigned char *frame_buffer = NULL;
-    image_u8_t *p_img = NULL;
+    static unsigned char *frame_buffer = NULL;
+    static image_u8_t *p_img = NULL;
     int z;
     static int written;
 
-    frame_buffer = calloc(width * 3 * height, 1);
+    if (frame_buffer == NULL) {
+        frame_buffer = calloc(width * 3 * height, 1);
+    }
 
-    if (detect) {
+    if (detect && p_img == NULL) {
 	    p_img = image_u8_create_stride(width, height, width);
     }
    
@@ -213,7 +215,7 @@ size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char*
     /* Write JPEG COM marker and data, if specified */
     if (p_comment != NULL) {
 	    jpeg_write_marker(&cinfo, JPEG_COM, (unsigned char*)p_comment, strlen(p_comment));
-	    free(p_comment);
+	    //free(p_comment);
     }
 
     jpeg_write_scanlines(&cinfo, row_pointer, height);
@@ -221,7 +223,7 @@ size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char*
     jpeg_finish_compress(&cinfo);
     jpeg_destroy_compress(&cinfo);
 
-    free(frame_buffer);
+    //free(frame_buffer);
 
     return (written);
 }

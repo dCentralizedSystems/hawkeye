@@ -13,16 +13,29 @@
 #define MAX_OUTPUT_STRING_LEN       (1024)
 
 char* apriltag_process(image_u8_t* p_img) {
-    apriltag_family_t* tf = tagStandard41h12_create();
-    apriltag_detector_t* td = apriltag_detector_create();
+    static apriltag_family_t* tf = NULL;
+    static apriltag_detector_t* td = NULL;
+    static char* p_output = NULL;
+
+    if (tf == NULL) {
+        tf = tagStandard41h12_create();
+    }
+
+    if (td == NULL) {
+        td = apriltag_detector_create();
+
+        /* Add tag family in use to detector */
+        apriltag_detector_add_family_bits(td, tf, 0);
+    }
 
     /**
      * Storage for output string 
      */
-    char* p_output = calloc(MAX_OUTPUT_STRING_LEN, 1);
+    if (p_output == NULL) {
+        p_output = calloc(MAX_OUTPUT_STRING_LEN, 1);
+    }
 
-    /* Add tag family in use to detector */
-    apriltag_detector_add_family_bits(td, tf, 0);
+    memset(p_output, 0, MAX_OUTPUT_STRING_LEN);
 
     /* Perform detection */
     zarray_t* p_detections = apriltag_detector_detect(td, p_img);
@@ -84,13 +97,15 @@ char* apriltag_process(image_u8_t* p_img) {
 
     strcat(p_output, "}\n");
 
+#ifdef PRINT_DETECTIONS
     printf("%s:\n%s\n", __func__, p_output);
+#endif
 
     apriltag_detections_destroy(p_detections);
-    apriltag_detector_destroy(td);
+    //apriltag_detector_destroy(td);
 
     if (p_img != NULL) {
-        image_u8_destroy(p_img);
+        //image_u8_destroy(p_img);
     }
 
     return p_output;
