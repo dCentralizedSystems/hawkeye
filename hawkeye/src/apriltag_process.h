@@ -1,6 +1,8 @@
 #ifndef _APRILTAG_PROCESS_H
 #define _APRILTAG_PROCESS_H
 
-char* apriltag_process(int format_in, unsigned int width, unsigned int height, unsigned char* buf, unsigned int buf_len);
+#include "image_u8.h"
+
+char* apriltag_process(image_u8_t* p_img);
 
 #endif /* #ifndef _APRILTAG_PROCESS_H */

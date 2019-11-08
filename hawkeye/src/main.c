@@ -158,22 +158,16 @@ void grab_frame(struct frame_buffer *fb) {
         log_it(LOG_ERROR, "Could not capture frame.");
     }
     else {
-	/* Apply any reqeusted pre-processing */
-	if (settings.apriltag_detect != 0) {
-	    comment = apriltag_process(fb->vd->format_in, fb->vd->width, fb->vd->height, buf, sizeof(buf));
-	    comment_len = strlen(comment);
-	}
-
 	/* Process by input format type (output type is always JPEG) */
         switch (fb->vd->format_in) {
             case V4L2_PIX_FMT_MJPEG:
                 frame_size = copy_frame(buf, sizeof(buf), fb->vd->framebuffer, frame_size);
                 break;
             case V4L2_PIX_FMT_YUYV:
-                frame_size = compress_yuyv_to_jpeg(buf, sizeof(buf), fb->vd->framebuffer, frame_size, fb->vd->width, fb->vd->height, fb->vd->jpeg_quality, (unsigned char*)comment, comment_len);
+                frame_size = compress_yuyv_to_jpeg(buf, sizeof(buf), fb->vd->framebuffer, frame_size, fb->vd->width, fb->vd->height, fb->vd->jpeg_quality, settings.apriltag_detect);
                 break;
        	    case V4L2_PIX_FMT_Z16:
-                frame_size = compress_z16_to_jpeg(buf, sizeof(buf), fb->vd->framebuffer, frame_size, fb->vd->width, fb->vd->height, fb->vd->jpeg_quality, (unsigned char*)comment, comment_len);
+                frame_size = compress_z16_to_jpeg(buf, sizeof(buf), fb->vd->framebuffer, frame_size, fb->vd->width, fb->vd->height, fb->vd->jpeg_quality);
                 break;
             default:
                 panic("Video device is using unknown format.");

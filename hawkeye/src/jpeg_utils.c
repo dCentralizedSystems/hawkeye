@@ -33,6 +33,9 @@
 
 #include "logger.h"
 
+/* For detection of apriltags */
+#include "apriltag_process.h"
+
 #define OUTPUT_BUF_SIZE  4096
 
 typedef struct {
@@ -134,16 +137,21 @@ Input Value.: video structure from v4l2uvc.c/h, destination buffer and buffersiz
               the buffer must be large enough, no error/size checking is done!
 Return Value: the buffer will contain the compressed data
 ******************************************************************************/
-size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char* src, size_t src_size, unsigned int width, unsigned int height, int quality, const unsigned char* comment, unsigned int comment_len) {
+size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char* src, size_t src_size, unsigned int width, unsigned int height, int quality, bool detect) {
     struct jpeg_compress_struct cinfo;
     struct jpeg_error_mgr jerr;
     JSAMPROW row_pointer[height];
-    unsigned char *frame_buffer;
+    unsigned char *frame_buffer = NULL;
+    image_u8_t *p_img = NULL;
     int z;
     static int written;
 
     frame_buffer = calloc(width * 3 * height, 1);
 
+    if (detect) {
+	    p_img = image_u8_create_stride(width, height, width);
+    }
+   
     cinfo.err = jpeg_std_error(&jerr);
     jpeg_create_compress(&cinfo);
     dest_buffer(&cinfo, dst, dst_size, &written);
@@ -159,14 +167,14 @@ size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char*
     jpeg_start_compress(&cinfo, TRUE);
 
     unsigned char *ptr = frame_buffer;
+    unsigned char *detect_ptr = (detect) ? p_img->buf : NULL;
 
     z = 0;
     for (size_t line=0; line < height; ++line) {
-        int x;
 	
-	row_pointer[line] = ptr;
+	    row_pointer[line] = ptr;
 
-        for(x = 0; x < width; x++) {
+        for(size_t x = 0; x < width; x++) {
             int r, g, b;
             int y, u, v;
 
@@ -185,6 +193,10 @@ size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char*
             *(ptr++) = (g > 255) ? 255 : ((g < 0) ? 0 : g);
             *(ptr++) = (b > 255) ? 255 : ((b < 0) ? 0 : b);
 
+	        if (detect) {
+		      *(detect_ptr++) = (r+b+g)/3;
+            }      
+
             if(z++) {
                 z = 0;
                 src += 4;
@@ -192,9 +204,16 @@ size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char*
         }
     }
 
+    /* Detect */
+    char *p_comment = NULL;
+    if (detect) {
+        p_comment = apriltag_process(p_img);
+    }
+
     /* Write JPEG COM marker and data, if specified */
-    if (comment_len > 0 && comment != NULL) {
-	jpeg_write_marker(&cinfo, JPEG_COM, comment, comment_len);
+    if (p_comment != NULL) {
+	    jpeg_write_marker(&cinfo, JPEG_COM, (unsigned char*)p_comment, strlen(p_comment));
+	    free(p_comment);
     }
 
     jpeg_write_scanlines(&cinfo, row_pointer, height);
@@ -207,12 +226,12 @@ size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char*
     return (written);
 }
 
-#define NUM_DEPTH_PROFILES (4)
+#define NUM_DEPTH_PROFILES  (4)
 #define PIX_MIN_DISTANCE_MM (20)
 #define PIX_MIN_VALUE       (0)
 #define PIX_MAX_VALUE       (255)
 
-size_t compress_z16_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char* src, size_t src_size, unsigned int width, unsigned int height, int quality, const unsigned char* comment, unsigned int comment_len) {
+size_t compress_z16_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char* src, size_t src_size, unsigned int width, unsigned int height, int quality) {
     struct jpeg_compress_struct cinfo;
     struct jpeg_error_mgr jerr;
     JSAMPROW row_pointer[1];
@@ -235,11 +254,6 @@ size_t compress_z16_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char* 
     jpeg_set_quality(&cinfo, quality, TRUE);
 
     jpeg_start_compress(&cinfo, TRUE);
-
-    /* Write JPEG COM marker and data, if specified */
-    if (comment_len > 0 && (comment != NULL)) {
-	jpeg_write_marker(&cinfo, JPEG_COM, comment, comment_len);
-    }
 
     while(cinfo.next_scanline < height) {
         int x;

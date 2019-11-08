@@ -9,121 +9,88 @@
 
 #include "apriltag_process.h"
 
-#define MAX_DETECTIONS 			(10)
-#define MAX_OUTPUT_STRING_LEN 		(1024)
+#define MAX_DETECTIONS          (10)
+#define MAX_OUTPUT_STRING_LEN       (1024)
 
-/**
- * Structure for holding detection information 
- */
-typedef struct {
-    int nbits;
-    int h;
-    int id;
-    int hamming;
-    float decision_margin;
-    float pose_error;
-} detection_t;
-
-typedef struct {
-    size_t num_detections;
-    detection_t detections[MAX_DETECTIONS];
-} detection_info_t;
-
-char* apriltag_process(int format_in, unsigned int width, unsigned int height, unsigned char* buf, unsigned int buf_len) {
+char* apriltag_process(image_u8_t* p_img) {
     apriltag_family_t* tf = tagStandard41h12_create();
     apriltag_detector_t* td = apriltag_detector_create();
-    pjpeg_t* pjpeg = NULL;
-    image_u8x3_t* p_img = NULL;
-    int error = 0;
 
     /**
      * Storage for output string 
      */
-    char* p_output = malloc(MAX_OUTPUT_STRING_LEN);
-    memset(p_output, 0, MAX_OUTPUT_STRING_LEN);
+    char* p_output = calloc(MAX_OUTPUT_STRING_LEN, 1);
 
-    /** 
-     * Structure for detection information
-     */
-    detection_info_t det_info_out;
-    det_info_out.num_detections = 0;
-    
     /* Add tag family in use to detector */
     apriltag_detector_add_family_bits(td, tf, 0);
-
-    pjpeg = pjpeg_create_from_buffer(buf, buf_len, PJPEG_STRICT, &error);
-
-    if (error != PJPEG_OKAY) {
-	return "{\"error\" : \"bad_jpeg_convert\"}";
-    }
-
-    /* Convert pjpeg opject into image type */
-    p_img = pjpeg_to_u8x3_baseline(pjpeg);
 
     /* Perform detection */
     zarray_t* p_detections = apriltag_detector_detect(td, p_img);
 
-    det_info_out.num_detections = zarray_size(p_detections);
+    size_t det_count = zarray_size(p_detections);
+    sprintf(p_output, "{\n  \"tags\" : \"%u\",\n", det_count);
 
     /* Iterate over detections */
-    for (size_t i=0; i < det_info_out.num_detections; ++i) {
-	apriltag_detection_t* p_single_det = NULL;
-	apriltag_detection_info_t det_info;
+    for (size_t i=0; i < det_count; ++i) {
+        static char fmt[64];
 
-	/* Get detection from detections array */
-	zarray_get(p_detections, i, &p_single_det);
+        apriltag_detection_t* p_det = NULL;
 
-	det_info.det = p_single_det;
+        /* Get detection from detections array */
+        zarray_get(p_detections, i, &p_det);
 
-	/* Configure detection info for pose estimation */
-	/* For RealSense D435, using the OV2740 sensor:
-	 *   fx = 1.88mm / 1.4um = 1343 
-	 *   fy = 1.88mm / 1.4um = 1343
-	 *   cx = width / 2
-	 *   cy = height / 2
-	 *   
-	 *   Hardcoded tag size = 0.1016m
-	 */
-	det_info.fx = 1343;
-	det_info.fy = 1343;
-	det_info.cx = width / 2;
-	det_info.cy = height / 2;
-	det_info.tagsize = 0.1016;
+#ifdef POSE_DETECT 
+        apriltag_detection_info_t det_info;
+        det_info.det = p_det;
 
-	apriltag_pose_t pose;
-	double pose_err = estimate_tag_pose(&det_info, &pose);
+        /* Configure detection info for pose estimation */
+        /* For RealSense D435, using the OV2740 sensor:
+         *   fx = 1.88mm / 1.4um = 1343 
+         *   fy = 1.88mm / 1.4um = 1343
+         *   cx = width / 2
+         *   cy = height / 2
+         *   
+         *   Hardcoded tag size = 0.1016m
+         */
+        det_info.fx = 1343;
+        det_info.fy = 1343;
+        det_info.cx = width / 2;
+        det_info.cy = height / 2;
+        det_info.tagsize = 0.1016;
 
-	/* Store the detection and pose information */
-	det_info_out.detections[i].pose_error = pose_err;
-	det_info_out.detections[i].nbits = p_single_det->family->nbits;
-	det_info_out.detections[i].h = p_single_det->family->h;
-	det_info_out.detections[i].id = p_single_det->id;
-	det_info_out.detections[i].hamming = p_single_det->hamming;
-	det_info_out.detections[i].decision_margin = p_single_det->decision_margin;
+        apriltag_pose_t pose;
+        double pose_err = estimate_tag_pose(&det_info, &pose);
+#endif /* #ifdef POSE_DETECT */
+
+        memset(fmt, 0, 64);
+        sprintf(fmt, "  {\n    \"id\" : \"%u\",\n", p_det->id);
+        strcat(p_output, fmt);
+        for (size_t c=0; c < 4; ++c) {
+            memset(fmt, 0, 64);
+            sprintf(fmt, "    \"coord[%u]\" : \"%u,%u\",\n", c, (unsigned)p_det->p[c][0], (unsigned)p_det->p[c][1]);
+            strcat(p_output, fmt);
+        }
+        strcat(p_output, "  },\n");
+
+//#define TAG_DETECT_LINE
+#ifdef TAG_DETECT_LINE
+        for (size_t i=0; i < 3; ++i) {
+            image_u8_draw_line(p_img, p_det->p[i][0], p_det->p[i][1], p_det->p[i+1][0], p_det->p[i+1][1], 255, 1); 
+        }
+        image_u8_draw_line(p_img, p_det->p[3][0], p_det->p[3][1], p_det->p[0][0], p_det->p[0][1], 255, 1); 
+        image_u8_write_pnm(p_img, "tags.pnm");
+#endif
     }
 
-    /* All detection information is in det_info structure, print it out */
-    sprintf(p_output, "Apriltags in image: %u {\r\n", det_info_out.num_detections);
+    strcat(p_output, "}\n");
 
-    for (size_t i=0; i < det_info_out.num_detections; ++i) {
-    	static char fmt[64];
-	memset(fmt, 0, 64);
+    printf("%s:\n%s\n", __func__, p_output);
 
-	sprintf(fmt, "  \"id\" : \"%u\",\r\n", det_info_out.detections[i].id);
-    	strcat(p_output, fmt);
-    }
-    strcat(p_output, "}\r\n");
-
-_cleanUp:
     apriltag_detections_destroy(p_detections);
     apriltag_detector_destroy(td);
 
-    if (pjpeg != NULL) {
-	pjpeg_destroy(pjpeg);
-    }
-
     if (p_img != NULL) {
-	image_u8x3_destroy(p_img);
+        image_u8_destroy(p_img);
     }
 
     return p_output;
