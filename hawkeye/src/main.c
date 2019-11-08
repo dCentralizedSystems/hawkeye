@@ -149,8 +149,6 @@ void write_frame(struct frame_buffer *fb, void *data, size_t data_len) {
 void grab_frame(struct frame_buffer *fb) {
     unsigned char buf[fb->vd->framebuffer_size];
     size_t frame_size = 0;
-    char* comment = NULL;
-    unsigned int comment_len = 0;
     
     frame_size = capture_frame(fb->vd);
 
@@ -173,11 +171,6 @@ void grab_frame(struct frame_buffer *fb) {
                 panic("Video device is using unknown format.");
                 break;
         }
-
-	/* Clean up comment */
-	if (comment != NULL) {
-	    free(comment);
-	}
     }
 
     write_frame(fb, buf, frame_size);
