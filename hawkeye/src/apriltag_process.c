@@ -78,15 +78,8 @@ char* apriltag_process(image_u8_t* p_img) {
         float norm_x = ((float)p_det->c[0]) / ((float)p_img->width);
         float norm_y = ((float)p_det->c[1]) / ((float)p_img->height);
         memset(fmt, 0, 64);
-        sprintf(fmt, "  tag%u : {\n    \"id\" : \"%u\",\n", i, p_det->id);
+        sprintf(fmt, "  \"tag%u\" : \"%u,%.4f,%1.4f,%1.4f\"", i, p_det->id, p_det->decision_margin, norm_x, norm_y);
         strcat(p_output, fmt);
-        memset(fmt, 0, 64);
-        sprintf(fmt, "    \"center\" : \"%1.4f,%1.4f\"\n", norm_x, norm_y);
-        strcat(p_output, fmt);
-        memset(fmt, 0, 64);
-        sprintf(fmt, "    \"margin\" : \"%.4f\"\n", p_det->decision_margin);
-        strcat(p_output, fmt);
-        strcat(p_output, "  }");
         if (i == det_count-1) {
             strcat(p_output, "\n");
         } else {
