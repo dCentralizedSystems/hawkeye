@@ -41,7 +41,6 @@ char* apriltag_process(image_u8_t* p_img) {
     zarray_t* p_detections = apriltag_detector_detect(td, p_img);
 
     size_t det_count = zarray_size(p_detections);
-    sprintf(p_output, "{\n");
 
     /* Iterate over detections */
     for (size_t i=0; i < det_count; ++i) {
@@ -75,16 +74,9 @@ char* apriltag_process(image_u8_t* p_img) {
         double pose_err = estimate_tag_pose(&det_info, &pose);
 #endif /* #ifdef POSE_DETECT */
 
-        float norm_x = ((float)p_det->c[0]) / ((float)p_img->width);
-        float norm_y = ((float)p_det->c[1]) / ((float)p_img->height);
         memset(fmt, 0, 64);
-        sprintf(fmt, "  \"tag%u\" : \"%u,%.4f,%1.4f,%1.4f\"", i, p_det->id, p_det->decision_margin, norm_x, norm_y);
+        sprintf(fmt, "%u,%u,%u,%u,%u\n", i, p_det->id, (unsigned int)p_det->decision_margin, (unsigned int)p_det->c[0], (unsigned int)p_det->c[1]);
         strcat(p_output, fmt);
-        if (i == det_count-1) {
-            strcat(p_output, "\n");
-        } else {
-            strcat(p_output, ",\n");
-        }
 
 //#define TAG_DETECT_LINE
 #ifdef TAG_DETECT_LINE
@@ -95,8 +87,6 @@ char* apriltag_process(image_u8_t* p_img) {
         image_u8_write_pnm(p_img, "tags.pnm");
 #endif
     }
-
-    strcat(p_output, "}\n");
 
 #ifdef PRINT_DETECTIONS
     printf("%s:\n%s\n", __func__, p_output);
