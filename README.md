@@ -55,15 +55,3 @@ Hawkeye is licensed under GPL-3 unless specified differently in the source files
 
 Much of the video capture code was borrowed and modified from the mjpeg-streamer project. The web UI is based on Bootstrap and jQuery. The rest was written from scratch by Igor Partola <igor@igorpartola.com> (https://igorpartola.com).
 
-## Building
-```git clone https://github.com/dCentralizedSystems/hawkeye.git```
-```cd hawkeye```
-```git submodule init```
-```git submodule update```
-```mkdir build && cd build```
-```cmake ../```
-```make clean && make && sudo make install```
-
-## Apriltag detection
--Enabled for color yuv images only.  Launch hawkeye with --apriltag-detect flag.  Apriltag detections are stored in the output JPEG file in the COM (comments) section.
-
