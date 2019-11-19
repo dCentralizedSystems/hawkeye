@@ -43,7 +43,7 @@ struct settings {
 	char *file_root;
 	char *base_file_name;
 	short apriltag_detect;
-    	int log_level;
+    int log_level;
 	int v4l2_format;
 	int video_device_count;
 	char **video_device_files;
