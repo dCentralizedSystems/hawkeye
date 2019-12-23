@@ -197,7 +197,7 @@ int main(int argc, char *argv[]) {
 
     if (strlen(settings.pid_file) > 0 ) {
         write_pid(settings.pid_file, settings.user, settings.group);
-   
+    }   
 
     init_signals();
 
