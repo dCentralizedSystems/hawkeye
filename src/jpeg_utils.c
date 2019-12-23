@@ -233,7 +233,7 @@ size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char*
 #define PIX_MIN_VALUE       (0)
 #define PIX_MAX_VALUE       (255)
 
-size_t compress_z16_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char* src, size_t src_size, unsigned int width, unsigned int height, int quality) {
+size_t compress_z16_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char* src, size_t src_size, unsigned int width, unsigned int height, int quality, int mm_scale) {
     struct jpeg_compress_struct cinfo;
     struct jpeg_error_mgr jerr;
     JSAMPROW row_pointer[1];
@@ -266,8 +266,12 @@ size_t compress_z16_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char* 
             unsigned short pix_in = src[0] | (src[1] << 8);
             unsigned char pix_byte = 0;
     
-            /* Scale to one byte */
-            pix_in /= PIX_MIN_DISTANCE_MM;
+            /* Scale to one byte - scale is set by settings */
+            if (mm_scale == 0) {
+                pix_in /= PIX_MIN_DISTANCE_MM;
+            } else {
+                pix_in /= mm_scale;
+            }
    
             if (pix_in > PIX_MAX_VALUE)
                 pix_in = PIX_MAX_VALUE;

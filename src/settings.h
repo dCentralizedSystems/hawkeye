@@ -7,6 +7,7 @@
 #define DEFAULT_FPS "5"
 #define DEFAULT_WIDTH "640"
 #define DEFAULT_HEIGHT "480"
+#define DEFAULT_MM_SCALE "0"
 #define DEFAULT_JPEG_QUALITY "80"
 #define DEFAULT_HOST "localhost"
 #define DEFAULT_CONFIG_FILE	""
@@ -39,6 +40,7 @@ struct settings {
 	char *ssl_key_file;
 	int width;
 	int height;
+    int mm_scale;
 	int jpeg_quality;
 	char *file_root;
 	char *base_file_name;

@@ -35,7 +35,7 @@ void print_usage() {
     fprintf(stdout, "       [-l logfile] [-u user] [-g group] [-F fps] [-D video-devices] [-W width]\n");
     fprintf(stdout, "       [-G height] [-j jpeg-quality] [-L log-level] [-f format] [-A user:pass]\n");
     fprintf(stdout, "       [-C cert-file] [-k key-file]\n");
-    fprintf(stdout, "       [-r file-root] [-b base_file_name]\n");
+    fprintf(stdout, "       [-r file-root] [-b base_file_name] [-m mm-scale]\n");
     fprintf(stdout, "\n");
     fprintf(stdout, "Usage: %s [--daemon] [--config=path] [--host=host] [--port=port]\n", program_name);
     fprintf(stdout, "       [--www-root=path] [--pid=path] [--log=path] [--user=user] [--group=group]\n");
@@ -43,6 +43,7 @@ void print_usage() {
     fprintf(stdout, "       [--quality=quality] [--log-level=log-level] [--format=format]\n");
     fprintf(stdout, "       [--auth=user:pass] [--cert=cert-file] [--key=key-file]\n");
     fprintf(stdout, "       [--file-root=file-root] [--base-file-name=base-file-name]\n");
+    fprintf(stdout, "       [--mm-scale=mm_scale]\n");
 
     fprintf(stdout, "Usage: %s [-h]\n", program_name);
     fprintf(stdout, "Usage: %s [-v]\n", program_name);
@@ -73,6 +74,7 @@ void init_settings(int argc, char *argv[]) {
     add_config_item(conf, 'F', "fps", CONFIG_INT, &settings.fps, DEFAULT_FPS);
     add_config_item(conf, 'W', "width", CONFIG_INT, &settings.width, DEFAULT_WIDTH);
     add_config_item(conf, 'G', "height", CONFIG_INT, &settings.height, DEFAULT_HEIGHT);
+    add_config_item(conf, 'm', "mm-scale", CONFIG_INT, &settings.mm_scale, DEFAULT_MM_SCALE);
     add_config_item(conf, 'j', "quality", CONFIG_INT, &settings.jpeg_quality, DEFAULT_JPEG_QUALITY);
     add_config_item(conf, 'A', "auth", CONFIG_STR, &settings.auth, DEFAULT_AUTH);
     add_config_item(conf, 'C', "cert", CONFIG_STR, &settings.ssl_cert_file, DEFAULT_SSL_CERT_FILE);
