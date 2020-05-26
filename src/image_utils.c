@@ -28,7 +28,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "jpeg_utils.h"
+#include "image_utils.h"
 #include "v4l2uvc.h"
 
 #include "logger.h"
@@ -137,12 +137,11 @@ Input Value.: video structure from v4l2uvc.c/h, destination buffer and buffersiz
               the buffer must be large enough, no error/size checking is done!
 Return Value: the buffer will contain the compressed data
 ******************************************************************************/
-size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char* src, size_t src_size, unsigned int width, unsigned int height, int quality, bool detect) {
+size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char* src, size_t src_size, unsigned int width, unsigned int height, int quality) {
     struct jpeg_compress_struct cinfo;
     struct jpeg_error_mgr jerr;
     JSAMPROW row_pointer[height];
     static unsigned char *frame_buffer = NULL;
-    static image_u8_t *p_img = NULL;
     int z;
     static int written;
 
@@ -150,10 +149,6 @@ size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char*
         frame_buffer = calloc(width * 3 * height, 1);
     }
 
-    if (detect && p_img == NULL) {
-	    p_img = image_u8_create_stride(width, height, width);
-    }
-   
     cinfo.err = jpeg_std_error(&jerr);
     jpeg_create_compress(&cinfo);
     dest_buffer(&cinfo, dst, dst_size, &written);
@@ -169,7 +164,6 @@ size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char*
     jpeg_start_compress(&cinfo, TRUE);
 
     unsigned char *ptr = frame_buffer;
-    unsigned char *detect_ptr = (detect) ? p_img->buf : NULL;
 
     z = 0;
     for (size_t line=0; line < height; ++line) {
@@ -195,27 +189,11 @@ size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char*
             *(ptr++) = (g > 255) ? 255 : ((g < 0) ? 0 : g);
             *(ptr++) = (b > 255) ? 255 : ((b < 0) ? 0 : b);
 
-	        if (detect) {
-		      *(detect_ptr++) = (r+b+g)/3;
-            }      
-
             if(z++) {
                 z = 0;
                 src += 4;
             }
         }
-    }
-
-    /* Detect */
-    char *p_comment = NULL;
-    if (detect) {
-        p_comment = apriltag_process(p_img);
-    }
-
-    /* Write JPEG COM marker and data, if specified */
-    if (p_comment != NULL) {
-	    jpeg_write_marker(&cinfo, JPEG_COM, (unsigned char*)p_comment, strlen(p_comment));
-	    //free(p_comment);
     }
 
     jpeg_write_scanlines(&cinfo, row_pointer, height);
@@ -224,6 +202,54 @@ size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char*
     jpeg_destroy_compress(&cinfo);
 
     //free(frame_buffer);
+
+    return (written);
+}
+
+/******************************************************************************
+Description.: yuv2jpeg function is based on compress_yuyv_to_jpeg written by
+              Gabriel A. Devenyi.
+              It uses the destination manager implemented above to compress
+              YUYV data to BMP.
+Input Value.: video structure from v4l2uvc.c/h, destination buffer and buffersize
+              the buffer must be large enough, no error/size checking is done!
+Return Value: the buffer will contain the compressed data
+******************************************************************************/
+size_t compress_yuyv_to_bmp(unsigned char *dst, size_t dst_size, unsigned char* src, size_t src_size, unsigned int width, unsigned int height) {
+    int z;
+    int written = 0;
+
+    unsigned char *ptr = dst;
+
+    z = 0;
+    for (size_t line=0; line < height; ++line) {
+        for(size_t x = 0; x < width; x++) {
+            int r, g, b;
+            int y, u, v;
+
+            if(!z)
+                y = src[0] << 8;
+            else
+                y = src[2] << 8;
+            u = src[1] - 128;
+            v = src[3] - 128;
+
+            r = (y + (359 * v)) >> 8;
+            g = (y - (88 * u) - (183 * v)) >> 8;
+            b = (y + (454 * u)) >> 8;
+
+            *(ptr++) = (b > 255) ? 255 : ((b < 0) ? 0 : b);
+            *(ptr++) = (g > 255) ? 255 : ((g < 0) ? 0 : g);
+            *(ptr++) = (r > 255) ? 255 : ((r < 0) ? 0 : r);
+
+            written += 3;
+
+            if(z++) {
+                z = 0;
+                src += 4;
+            }
+        }
+    }
 
     return (written);
 }
@@ -290,6 +316,36 @@ size_t compress_z16_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char* 
     jpeg_destroy_compress(&cinfo);
 
     free(line_buffer);
+
+    return (written);
+}
+
+size_t compress_z16_to_bmp(unsigned char *dst, size_t dst_size, unsigned char* src, size_t src_size, unsigned int width, unsigned int height, int mm_scale) {
+    unsigned char *ptr = dst;
+    unsigned int written = 0;
+
+    for (uint32_t h=0; h < height; ++h) {
+        for(uint32_t w=0; w < width; ++w) {
+            unsigned short pix_in = src[0] | (src[1] << 8);
+            unsigned char pix_byte = 0;
+
+            /* Scale to one byte - scale is set by settings */
+            if (mm_scale == 0) {
+                pix_in /= PIX_MIN_DISTANCE_MM;
+            } else {
+                pix_in /= mm_scale;
+            }
+
+            if (pix_in > PIX_MAX_VALUE)
+                pix_in = PIX_MAX_VALUE;
+
+            pix_byte = (unsigned char)pix_in;
+
+            *(ptr++) = pix_byte;
+            written += 1;
+            src += 2;
+        }
+    }
 
     return (written);
 }

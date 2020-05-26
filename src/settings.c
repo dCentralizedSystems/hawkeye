@@ -31,17 +31,15 @@ static void normalize_path(char **path, const char *error) {
 }
 
 void print_usage() {
-    fprintf(stdout, "Usage: %s [-d] [-c config] [-H host] [-p port] [-w www-root] [-P pidfile]\n", program_name);
+    fprintf(stdout, "Usage: %s [-d] [-P pidfile]\n", program_name);
     fprintf(stdout, "       [-l logfile] [-u user] [-g group] [-F fps] [-D video-devices] [-W width]\n");
     fprintf(stdout, "       [-G height] [-j jpeg-quality] [-L log-level] [-f format] [-A user:pass]\n");
-    fprintf(stdout, "       [-C cert-file] [-k key-file]\n");
     fprintf(stdout, "       [-r file-root] [-b base_file_name] [-m mm-scale]\n");
     fprintf(stdout, "\n");
-    fprintf(stdout, "Usage: %s [--daemon] [--config=path] [--host=host] [--port=port]\n", program_name);
-    fprintf(stdout, "       [--www-root=path] [--pid=path] [--log=path] [--user=user] [--group=group]\n");
+    fprintf(stdout, "Usage: %s [--daemon]\n", program_name);
+    fprintf(stdout, "       [--pid=path] [--log=path] [--user=user] [--group=group]\n");
     fprintf(stdout, "       [--fps=fps][--devices=video-devices] [--width=width] [--height=height]\n");
     fprintf(stdout, "       [--quality=quality] [--log-level=log-level] [--format=format]\n");
-    fprintf(stdout, "       [--auth=user:pass] [--cert=cert-file] [--key=key-file]\n");
     fprintf(stdout, "       [--file-root=file-root] [--base-file-name=base-file-name]\n");
     fprintf(stdout, "       [--mm-scale=mm_scale]\n");
 
@@ -51,7 +49,7 @@ void print_usage() {
     fprintf(stdout, "devices is a : separated list of video devices, such as\n");
     fprintf(stdout, "for example \"/dev/video0:/dev/video1\".\n");
     fprintf(stdout, "log-level can be debug, info, warning, or error.\n");
-    fprintf(stdout, "format can be mjpeg (recommended), yuv, or z16.\n");
+    fprintf(stdout, "format can be yuv or z16.\n");
 }
 
 void init_settings(int argc, char *argv[]) {
@@ -63,10 +61,6 @@ void init_settings(int argc, char *argv[]) {
     conf = create_config();
 
     add_config_item(conf, 'd', "daemon", CONFIG_BOOL, &settings.run_in_background, "0");
-    add_config_item(conf, 'c', "config", CONFIG_STR, &settings.config_file, DEFAULT_CONFIG_FILE);
-    add_config_item(conf, 'H', "host", CONFIG_STR, &settings.host, DEFAULT_HOST);
-    add_config_item(conf, 'p', "port", CONFIG_INT, &settings.port, DEFAULT_PORT);
-    add_config_item(conf, 'w', "www-root", CONFIG_STR, &settings.static_root, DEFAULT_STATIC_ROOT);
     add_config_item(conf, 'l', "log", CONFIG_STR, &settings.log_file, DEFAULT_LOG_FILE);
     add_config_item(conf, 'P', "pid", CONFIG_STR, &settings.pid_file, DEFAULT_PID_FILE);
     add_config_item(conf, 'u', "user", CONFIG_STR, &settings.user, DEFAULT_USER);
@@ -76,13 +70,9 @@ void init_settings(int argc, char *argv[]) {
     add_config_item(conf, 'G', "height", CONFIG_INT, &settings.height, DEFAULT_HEIGHT);
     add_config_item(conf, 'm', "mm-scale", CONFIG_INT, &settings.mm_scale, DEFAULT_MM_SCALE);
     add_config_item(conf, 'j', "quality", CONFIG_INT, &settings.jpeg_quality, DEFAULT_JPEG_QUALITY);
-    add_config_item(conf, 'A', "auth", CONFIG_STR, &settings.auth, DEFAULT_AUTH);
-    add_config_item(conf, 'C', "cert", CONFIG_STR, &settings.ssl_cert_file, DEFAULT_SSL_CERT_FILE);
-    add_config_item(conf, 'k', "key", CONFIG_STR, &settings.ssl_key_file, DEFAULT_SSL_KEY_FILE);
     add_config_item(conf, 'r', "file-root", CONFIG_STR, &settings.file_root, DEFAULT_FILE_ROOT);
     add_config_item(conf, 'b', "base-file-name", CONFIG_STR, &settings.base_file_name, DEFAULT_BASE_FILE_NAME);
-    add_config_item(conf, 'a', "apriltag-detect", CONFIG_BOOL, &settings.apriltag_detect, "1");
-    
+
     add_config_item(conf, 'L', "log-level", CONFIG_STR, &log_level, DEFAULT_LOG_LEVEL);
     add_config_item(conf, 'f', "format", CONFIG_STR, &v4l2_format, DEFAULT_V4L2_FORMAT);
     add_config_item(conf, 'D', "devices", CONFIG_STR, &video_device_files, DEFAULT_VIDEO_DEVICE_FILES);
@@ -114,7 +104,7 @@ void init_settings(int argc, char *argv[]) {
     }
 
     // Set format
-    settings.v4l2_format = V4L2_PIX_FMT_MJPEG;
+    settings.v4l2_format = V4L2_PIX_FMT_YUYV;
     if (strcmp(v4l2_format, "yuv") == 0) {
         settings.v4l2_format = V4L2_PIX_FMT_YUYV;
     }
@@ -144,25 +134,16 @@ void init_settings(int argc, char *argv[]) {
     settings.jpeg_quality = max(1, min(100, settings.jpeg_quality));
     settings.fps = max(1, min(50, settings.fps));
 
-    normalize_path(&settings.static_root, "The www-root you specified does not exist");
     normalize_path(&settings.file_root, "The file-root you specified does not exist");
-    normalize_path(&settings.ssl_cert_file, "The SSL certificate file you specified does not exist");
-    normalize_path(&settings.ssl_key_file, "The SSL private key file you specified does not exist");
 
     if (display_usage) {
         print_usage();
-        exit(0);
-    }
-    
-    if (display_version) {
-        print_version();
         exit(0);
     }
 }
 
 void cleanup_settings() {
     free(settings.host);
-    free(settings.config_file);
     free(settings.log_file);
     free(settings.pid_file);
     free(settings.user);
@@ -170,8 +151,5 @@ void cleanup_settings() {
     free(settings.video_device_files[0]);
     free(settings.video_device_files);
     free(settings.static_root);
-    free(settings.auth);
-    free(settings.ssl_cert_file);
-    free(settings.ssl_key_file);
 }
 

@@ -3,26 +3,23 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
 #include <errno.h>
 #include <signal.h>
-#include <openssl/ssl.h>
 
 #include "memory.h"
 #include "logger.h"
 #include "frames.h"
 #include "v4l2uvc.h"
-#include "jpeg_utils.h"
+#include "image_utils.h"
+#include "bitmap.h"
 #include "server.h"
 #include "utils.h"
 #include "daemon.h"
 #include "settings.h"
-#include "apriltag_process.h"
 
 #define FRAME_BUFFER_LENGTH 8
-#define HTTP_TIMEOUT 0.01
+
+#define WRITE_BMP
 
 static int is_running = 1;
 
@@ -119,16 +116,20 @@ void write_frame(struct frame_buffer *fb, void *data, size_t data_len) {
     static char out_file_path[128] = {0};
     static char temp_out_file_path[128] = {0};
 
-    memset(out_file_path, 0, 128);
-    memset(temp_out_file_path, 0, 128);
-
-    sprintf(temp_out_file_path, "%s/%s.jpg~", settings.file_root, settings.base_file_name);
-    sprintf(out_file_path, "%s/%s.jpg", settings.file_root, settings.base_file_name);
+    if (out_file_path[0] == 0 && temp_out_file_path[0] == 0) {
+#ifndef WRITE_BMP
+        sprintf(temp_out_file_path, "%s/%s.jpg~", settings.file_root, settings.base_file_name);
+        sprintf(out_file_path, "%s/%s.jpg", settings.file_root, settings.base_file_name);
+#else
+        sprintf(temp_out_file_path, "%s/%s.bmp~", settings.file_root, settings.base_file_name);
+        sprintf(out_file_path, "%s/%s.bmp", settings.file_root, settings.base_file_name);
+#endif
+    }
 
     /* Only write files for specific formats */
-    if (fb->vd->format_in == V4L2_PIX_FMT_MJPEG ||
-	    fb->vd->format_in == V4L2_PIX_FMT_YUYV ||
+    if (fb->vd->format_in == V4L2_PIX_FMT_YUYV ||
 	    fb->vd->format_in == V4L2_PIX_FMT_Z16) {
+
     	/* Open and write the file */
     	FILE* p_file = fopen(temp_out_file_path, "w+");
 
@@ -137,7 +138,12 @@ void write_frame(struct frame_buffer *fb, void *data, size_t data_len) {
        	 	return;
     	}
 
+#ifndef WRITE_BMP
     	fwrite(data, data_len, 1, p_file);
+#else
+    	size_t bytesPerPixel = (fb->vd->format_in == V4L2_PIX_FMT_Z16) ? 1 : 3;
+        bmWriteBitmap(p_file, fb->vd->width, fb->vd->height, bytesPerPixel, data, data_len);
+#endif
     	fflush(p_file);
     	fclose(p_file);
 
@@ -147,25 +153,44 @@ void write_frame(struct frame_buffer *fb, void *data, size_t data_len) {
 }
 
 void grab_frame(struct frame_buffer *fb) {
+
+#ifndef WRITE_BMP
     unsigned char buf[fb->vd->framebuffer_size];
+#else
+    uint32_t buf_size = fb->vd->width * fb->vd->height;
+    if (fb->vd->format_in == V4L2_PIX_FMT_YUYV) {
+        buf_size *= 3;
+    } else if (fb->vd->format_in == V4L2_PIX_FMT_Z16) {
+        buf_size *= 1;
+    }
+    uint8_t *buf = malloc(buf_size);
+    if (!buf) {
+        perror("Couldn't allocate output frame data buffer");
+        return;
+    }
+#endif
+
     size_t frame_size = 0;
-    
     frame_size = capture_frame(fb->vd);
 
     if (frame_size <= 0) {
         log_it(LOG_ERROR, "Could not capture frame.");
-    }
-    else {
-	/* Process by input format type (output type is always JPEG) */
+    } else {
+        /* Process by input format type (output type is always JPEG) */
         switch (fb->vd->format_in) {
-            case V4L2_PIX_FMT_MJPEG:
-                frame_size = copy_frame(buf, sizeof(buf), fb->vd->framebuffer, frame_size);
-                break;
             case V4L2_PIX_FMT_YUYV:
-                frame_size = compress_yuyv_to_jpeg(buf, sizeof(buf), fb->vd->framebuffer, frame_size, fb->vd->width, fb->vd->height, fb->vd->jpeg_quality, settings.apriltag_detect);
+#ifndef WRITE_BMP
+                frame_size = compress_yuyv_to_jpeg(buf, sizeof(buf), fb->vd->framebuffer, frame_size, fb->vd->width, fb->vd->height, fb->vd->jpeg_quality);
+#else
+                frame_size = compress_yuyv_to_bmp(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width, fb->vd->height);
+#endif
                 break;
-       	    case V4L2_PIX_FMT_Z16:
+            case V4L2_PIX_FMT_Z16:
+#ifndef WRITE_BMP
                 frame_size = compress_z16_to_jpeg(buf, sizeof(buf), fb->vd->framebuffer, frame_size, fb->vd->width, fb->vd->height, fb->vd->jpeg_quality, settings.mm_scale);
+#else
+                frame_size = compress_z16_to_bmp(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width, fb->vd->height, settings.mm_scale);
+#endif
                 break;
             default:
                 panic("Video device is using unknown format.");
@@ -175,19 +200,27 @@ void grab_frame(struct frame_buffer *fb) {
 
     write_frame(fb, buf, frame_size);
 
+#ifdef WRITE_BMP
+    free(buf);
+    buf = NULL;
+#endif
+
     requeue_device_buffer(fb->vd);
 
-    add_frame(fb, buf, frame_size);
+    //add_frame(fb, buf, frame_size);
 }
 
 int main(int argc, char *argv[]) {
     int i;
     struct frame_buffers *fbs;
     struct frame_buffer *fb;
-    struct server *s;
     struct timespec ts;
 
     double delta;
+    static double fps_avg = 0.0f;
+    double fps;
+
+    bmInit();
 
     init_settings(argc, argv);
 
@@ -209,11 +242,6 @@ int main(int argc, char *argv[]) {
         nchown(settings.log_file, settings.user, settings.group);
     }
 
-    log_it(LOG_INFO, "Starting server.");
-
-    SSL_library_init();
-    s = create_server(settings.host, settings.port, fbs, settings.static_root, settings.auth, settings.ssl_cert_file, settings.ssl_key_file);
-
     drop_privileges(settings.user, settings.group);
 
     while (is_running) {
@@ -223,7 +251,14 @@ int main(int argc, char *argv[]) {
             grab_frame(fb);
         }
 
-        serve_clients(s, fbs, HTTP_TIMEOUT);
+        fps = 1.0f / ((gettime() - delta) / fbs->count);
+        if (fps_avg == 0.0f) {
+            fps_avg = fps;
+        } else {
+            fps_avg += fps;
+            fps_avg /= 2;
+        }
+        printf("%s: fps: %f\n", __func__, fps_avg);
 
         delta = gettime() - delta;
         if (delta > 0) {
@@ -232,9 +267,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    destroy_server(s);
     destroy_frame_buffers(fbs);
-    EVP_cleanup();
 
     log_it(LOG_INFO, "Shutting down.");
 
