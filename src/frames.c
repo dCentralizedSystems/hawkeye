@@ -50,7 +50,7 @@ void add_frame(struct frame_buffer *fb, void *data, size_t data_len) {
             f->data_buf_len = total_data_len;
         }
         else {
-            log_itf(LOG_WARNING, "Could not realloc frame data because frame is larger than MAX_FRAME_SIZE: data_len = %d", total_data_len);
+            fprintf(stderr, "Could not realloc frame data because frame is larger than MAX_FRAME_SIZE: data_len = %lu", total_data_len);
             return;
         }
     }

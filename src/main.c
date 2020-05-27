@@ -23,6 +23,12 @@
 
 static int is_running = 1;
 
+typedef enum {
+    OUTPUT_FILE_TYPE_NONE,
+    OUTPUT_FILE_TYPE_JPG,
+    OUTPUT_FILE_TYPE_BMP
+} output_file_t;
+
 static void signal_handler(int sig){
     switch (sig) {
         case SIGINT:
@@ -111,19 +117,19 @@ void destroy_frame_buffers(struct frame_buffers *fbs) {
     free(fbs);
 }
 
-void write_frame(struct frame_buffer *fb, void *data, size_t data_len) {
+void write_frame(struct frame_buffer *fb, void *data, size_t data_len, output_file_t file_type) {
 
     static char out_file_path[128] = {0};
     static char temp_out_file_path[128] = {0};
 
     if (out_file_path[0] == 0 && temp_out_file_path[0] == 0) {
-#ifndef WRITE_BMP
-        sprintf(temp_out_file_path, "%s/%s.jpg~", settings.file_root, settings.base_file_name);
-        sprintf(out_file_path, "%s/%s.jpg", settings.file_root, settings.base_file_name);
-#else
-        sprintf(temp_out_file_path, "%s/%s.bmp~", settings.file_root, settings.base_file_name);
-        sprintf(out_file_path, "%s/%s.bmp", settings.file_root, settings.base_file_name);
-#endif
+        if (file_type == OUTPUT_FILE_TYPE_BMP) {
+            sprintf(temp_out_file_path, "%s/%s.bmp~", settings.file_root, settings.base_file_name);
+            sprintf(out_file_path, "%s/%s.bmp", settings.file_root, settings.base_file_name);
+        } else {
+            sprintf(temp_out_file_path, "%s/%s.jpg~", settings.file_root, settings.base_file_name);
+            sprintf(out_file_path, "%s/%s.jpg", settings.file_root, settings.base_file_name);
+        }
     }
 
     /* Only write files for specific formats */
@@ -138,12 +144,14 @@ void write_frame(struct frame_buffer *fb, void *data, size_t data_len) {
        	 	return;
     	}
 
-#ifndef WRITE_BMP
-    	fwrite(data, data_len, 1, p_file);
-#else
-    	size_t bytesPerPixel = (fb->vd->format_in == V4L2_PIX_FMT_Z16) ? 1 : 3;
-        bmWriteBitmap(p_file, fb->vd->width, fb->vd->height, bytesPerPixel, data, data_len);
-#endif
+    	// write the correct type of file
+    	if (file_type == OUTPUT_FILE_TYPE_BMP) {
+            size_t bytesPerPixel = (fb->vd->format_in == V4L2_PIX_FMT_Z16) ? 1 : 3;
+            bmWriteBitmap(p_file, fb->vd->width, fb->vd->height, bytesPerPixel, data, data_len);
+    	} else {
+            fwrite(data, data_len, 1, p_file);
+        }
+
     	fflush(p_file);
     	fclose(p_file);
 
@@ -152,45 +160,48 @@ void write_frame(struct frame_buffer *fb, void *data, size_t data_len) {
     }
 }
 
-void grab_frame(struct frame_buffer *fb) {
+void grab_frame(struct frame_buffer *fb, output_file_t file_type) {
+    uint8_t *buf = NULL;
+    uint32_t buf_size = 0;
 
-#ifndef WRITE_BMP
-    unsigned char buf[fb->vd->framebuffer_size];
-#else
-    uint32_t buf_size = fb->vd->width * fb->vd->height;
-    if (fb->vd->format_in == V4L2_PIX_FMT_YUYV) {
-        buf_size *= 3;
-    } else if (fb->vd->format_in == V4L2_PIX_FMT_Z16) {
-        buf_size *= 1;
+    if (file_type == OUTPUT_FILE_TYPE_BMP) {
+        uint32_t buf_size = fb->vd->width * fb->vd->height;
+        if (fb->vd->format_in == V4L2_PIX_FMT_YUYV) {
+            buf_size *= 3;
+        } else if (fb->vd->format_in == V4L2_PIX_FMT_Z16) {
+            buf_size *= 1;
+        }
+        buf = malloc(buf_size);
+
+    } else {
+        buf = (uint8_t*)malloc(fb->vd->framebuffer_size);
+        buf_size = fb->vd->framebuffer_size;
     }
-    uint8_t *buf = malloc(buf_size);
+
     if (!buf) {
         perror("Couldn't allocate output frame data buffer");
         return;
     }
-#endif
 
     size_t frame_size = 0;
     frame_size = capture_frame(fb->vd);
 
-    if (frame_size <= 0) {
-        log_it(LOG_ERROR, "Could not capture frame.");
-    } else {
+    if (frame_size > 0) {
         /* Process by input format type (output type is always JPEG) */
         switch (fb->vd->format_in) {
             case V4L2_PIX_FMT_YUYV:
-#ifndef WRITE_BMP
-                frame_size = compress_yuyv_to_jpeg(buf, sizeof(buf), fb->vd->framebuffer, frame_size, fb->vd->width, fb->vd->height, fb->vd->jpeg_quality);
-#else
-                frame_size = compress_yuyv_to_bmp(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width, fb->vd->height);
-#endif
+                if (file_type == OUTPUT_FILE_TYPE_BMP) {
+                    frame_size = compress_yuyv_to_bmp(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width, fb->vd->height);
+                } else {
+                    frame_size = compress_yuyv_to_jpeg(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width, fb->vd->height, fb->vd->jpeg_quality);
+                }
                 break;
             case V4L2_PIX_FMT_Z16:
-#ifndef WRITE_BMP
-                frame_size = compress_z16_to_jpeg(buf, sizeof(buf), fb->vd->framebuffer, frame_size, fb->vd->width, fb->vd->height, fb->vd->jpeg_quality, settings.mm_scale);
-#else
-                frame_size = compress_z16_to_bmp(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width, fb->vd->height, settings.mm_scale);
-#endif
+                if (file_type == OUTPUT_FILE_TYPE_BMP) {
+                    frame_size = compress_z16_to_bmp(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width, fb->vd->height, settings.mm_scale);
+                } else {
+                    frame_size = compress_z16_to_jpeg(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width, fb->vd->height, fb->vd->jpeg_quality, settings.mm_scale);
+                }
                 break;
             default:
                 panic("Video device is using unknown format.");
@@ -198,16 +209,12 @@ void grab_frame(struct frame_buffer *fb) {
         }
     }
 
-    write_frame(fb, buf, frame_size);
+    write_frame(fb, buf, frame_size, file_type);
 
-#ifdef WRITE_BMP
     free(buf);
     buf = NULL;
-#endif
 
     requeue_device_buffer(fb->vd);
-
-    //add_frame(fb, buf, frame_size);
 }
 
 int main(int argc, char *argv[]) {
@@ -215,6 +222,9 @@ int main(int argc, char *argv[]) {
     struct frame_buffers *fbs;
     struct frame_buffer *fb;
     struct timespec ts;
+
+    // output file type
+    output_file_t file_type = OUTPUT_FILE_TYPE_NONE;
 
     double delta;
     static double fps_avg = 0.0f;
@@ -224,31 +234,26 @@ int main(int argc, char *argv[]) {
 
     init_settings(argc, argv);
 
+    // determine output file format
+    if (strcmp(settings.file_format, "bmp") == 0) {
+        file_type = OUTPUT_FILE_TYPE_BMP;
+    } else {
+        file_type = OUTPUT_FILE_TYPE_JPG;
+    }
+
     if (settings.run_in_background) {
         daemonize();
     }
 
-    if (strlen(settings.pid_file) > 0 ) {
-        write_pid(settings.pid_file, settings.user, settings.group);
-    }   
-
     init_signals();
 
-    open_log(settings.log_file, settings.log_level);
-
     fbs = init_frame_buffers(settings.video_device_count, settings.video_device_files);
-
-    if (strlen(settings.log_file) > 0) {
-        nchown(settings.log_file, settings.user, settings.group);
-    }
-
-    drop_privileges(settings.user, settings.group);
 
     while (is_running) {
         delta = gettime();
         for (i = 0; i < fbs->count; i++) {
             fb = &fbs->buffers[i];
-            grab_frame(fb);
+            grab_frame(fb, file_type);
         }
 
         fps = 1.0f / ((gettime() - delta) / fbs->count);
@@ -269,15 +274,7 @@ int main(int argc, char *argv[]) {
 
     destroy_frame_buffers(fbs);
 
-    log_it(LOG_INFO, "Shutting down.");
-
-    if (strlen(settings.pid_file) > 0 ) {
-        unlink(settings.pid_file);
-    }
-
     cleanup_settings();
-
-    close_log();
 
     return 0;
 }

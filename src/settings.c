@@ -33,13 +33,13 @@ static void normalize_path(char **path, const char *error) {
 void print_usage() {
     fprintf(stdout, "Usage: %s [-d] [-P pidfile]\n", program_name);
     fprintf(stdout, "       [-l logfile] [-u user] [-g group] [-F fps] [-D video-devices] [-W width]\n");
-    fprintf(stdout, "       [-G height] [-j jpeg-quality] [-L log-level] [-f format] [-A user:pass]\n");
+    fprintf(stdout, "       [-G height] [-j jpeg-quality] [-L log-level] [-f format] [-O output-file-format] [-A user:pass]\n");
     fprintf(stdout, "       [-r file-root] [-b base_file_name] [-m mm-scale]\n");
     fprintf(stdout, "\n");
     fprintf(stdout, "Usage: %s [--daemon]\n", program_name);
     fprintf(stdout, "       [--pid=path] [--log=path] [--user=user] [--group=group]\n");
     fprintf(stdout, "       [--fps=fps][--devices=video-devices] [--width=width] [--height=height]\n");
-    fprintf(stdout, "       [--quality=quality] [--log-level=log-level] [--format=format]\n");
+    fprintf(stdout, "       [--quality=quality] [--log-level=log-level] [--format=format] [--file-format=output-file-format]\n");
     fprintf(stdout, "       [--file-root=file-root] [--base-file-name=base-file-name]\n");
     fprintf(stdout, "       [--mm-scale=mm_scale]\n");
 
@@ -49,22 +49,19 @@ void print_usage() {
     fprintf(stdout, "devices is a : separated list of video devices, such as\n");
     fprintf(stdout, "for example \"/dev/video0:/dev/video1\".\n");
     fprintf(stdout, "log-level can be debug, info, warning, or error.\n");
-    fprintf(stdout, "format can be yuv or z16.\n");
+    fprintf(stdout, "format can be yuv or z16.  Output file format can be jpg or bmp\n");
 }
 
 void init_settings(int argc, char *argv[]) {
     struct config *conf;
-    char *log_level, *v4l2_format, *video_device_files;
+    char *v4l2_format, *video_device_files;
     short display_version, display_usage;
     int i, video_devices_len;
 
     conf = create_config();
 
     add_config_item(conf, 'd', "daemon", CONFIG_BOOL, &settings.run_in_background, "0");
-    add_config_item(conf, 'l', "log", CONFIG_STR, &settings.log_file, DEFAULT_LOG_FILE);
-    add_config_item(conf, 'P', "pid", CONFIG_STR, &settings.pid_file, DEFAULT_PID_FILE);
-    add_config_item(conf, 'u', "user", CONFIG_STR, &settings.user, DEFAULT_USER);
-    add_config_item(conf, 'g', "group", CONFIG_STR, &settings.group, DEFAULT_GROUP);
+
     add_config_item(conf, 'F', "fps", CONFIG_INT, &settings.fps, DEFAULT_FPS);
     add_config_item(conf, 'W', "width", CONFIG_INT, &settings.width, DEFAULT_WIDTH);
     add_config_item(conf, 'G', "height", CONFIG_INT, &settings.height, DEFAULT_HEIGHT);
@@ -72,11 +69,9 @@ void init_settings(int argc, char *argv[]) {
     add_config_item(conf, 'j', "quality", CONFIG_INT, &settings.jpeg_quality, DEFAULT_JPEG_QUALITY);
     add_config_item(conf, 'r', "file-root", CONFIG_STR, &settings.file_root, DEFAULT_FILE_ROOT);
     add_config_item(conf, 'b', "base-file-name", CONFIG_STR, &settings.base_file_name, DEFAULT_BASE_FILE_NAME);
-
-    add_config_item(conf, 'L', "log-level", CONFIG_STR, &log_level, DEFAULT_LOG_LEVEL);
     add_config_item(conf, 'f', "format", CONFIG_STR, &v4l2_format, DEFAULT_V4L2_FORMAT);
+    add_config_item(conf, 'O', "file-format", CONFIG_STR, &settings.file_format, DEFAULT_FILE_FORMAT);
     add_config_item(conf, 'D', "devices", CONFIG_STR, &video_device_files, DEFAULT_VIDEO_DEVICE_FILES);
-    
     add_config_item(conf, 'h', "help", CONFIG_BOOL, &display_usage, "0");
     add_config_item(conf, 'v', "version", CONFIG_BOOL, &display_version, "0");
 
@@ -87,21 +82,6 @@ void init_settings(int argc, char *argv[]) {
     read_command_line(conf, argc, argv);
 
     destroy_config(conf);
-
-    // Set log level
-    settings.log_level = LOG_INFO;
-    if (strcmp(log_level, "debug") == 0) {
-        settings.log_level = LOG_DEBUG;
-    }
-    else if (strcmp(log_level, "info") == 0) {
-        settings.log_level = LOG_INFO;
-    }
-    else if (strcmp(log_level, "warning") == 0) {
-        settings.log_level = LOG_WARNING;
-    }
-    else if (strcmp(log_level, "error") == 0) {
-        settings.log_level = LOG_ERROR;
-    }
 
     // Set format
     settings.v4l2_format = V4L2_PIX_FMT_YUYV;
@@ -127,10 +107,8 @@ void init_settings(int argc, char *argv[]) {
         }
     }
 
-    free(log_level);
     free(v4l2_format);
 
-    settings.port = (unsigned short) abs(settings.port);
     settings.jpeg_quality = max(1, min(100, settings.jpeg_quality));
     settings.fps = max(1, min(50, settings.fps));
 
@@ -143,13 +121,7 @@ void init_settings(int argc, char *argv[]) {
 }
 
 void cleanup_settings() {
-    free(settings.host);
-    free(settings.log_file);
-    free(settings.pid_file);
-    free(settings.user);
-    free(settings.group);
     free(settings.video_device_files[0]);
     free(settings.video_device_files);
-    free(settings.static_root);
 }
 

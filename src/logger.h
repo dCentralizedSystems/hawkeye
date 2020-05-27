@@ -11,6 +11,6 @@ void log_it(const short type, const char *str);
 void log_itf(const short type, const char *fmt, ...);
 void close_log();
 
-#define DBG(...) log_itf(LOG_DEBUG, __VA_ARGS__);
+#define DBG(...) fprintf(stderr, __VA_ARGS__);
 
 #endif

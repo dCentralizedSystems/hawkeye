@@ -19,8 +19,6 @@ add_executable(hawkeye
         src/frames.h
         src/image_utils.c
         src/image_utils.h
-        src/logger.c
-        src/logger.h
         src/main.c
         src/main.h
         src/memory.c
