@@ -29,6 +29,12 @@ typedef enum {
     OUTPUT_FILE_TYPE_BMP
 } output_file_t;
 
+typedef struct {
+    uint8_t red;
+    uint8_t green;
+    uint8_t blue;
+} detect_color_t;
+
 static void signal_handler(int sig){
     switch (sig) {
         case SIGINT:
@@ -217,6 +223,27 @@ void grab_frame(struct frame_buffer *fb, output_file_t file_type) {
     requeue_device_buffer(fb->vd);
 }
 
+detect_color_t parseDetectColor(const char *p_detect_color, uint32_t detect_color_len) {
+    detect_color_t out = { 0, 0, 0 };
+
+    if (!p_detect_color || detect_color_len != DETECT_COLOR_LENGTH || p_detect_color[0] != '#') {
+        return out;
+    }
+
+    // parse
+    unsigned long hexVal = strtoul(&p_detect_color[1], NULL, 16);
+
+    // extract rgb
+    hexVal &= 0xFFFFFF;
+    out.red = hexVal >> 16;
+    out.green = (hexVal >> 8) & 0xFF;
+    out.blue = hexVal & 0xFF;
+
+    printf("Converting %s -> r: %u g: %u b: %u\n", p_detect_color, out.red, out.green, out.blue);
+
+    return out;
+}
+
 int main(int argc, char *argv[]) {
     int i;
     struct frame_buffers *fbs;
@@ -230,11 +257,18 @@ int main(int argc, char *argv[]) {
     static double fps_avg = 0.0f;
     double fps;
 
+    detect_color_t detect_color;
+
     bool calc_fps = false;
 
     bmInit();
 
     init_settings(argc, argv);
+
+    // detect color
+    detect_color = parseDetectColor(settings.detect_color, strlen(settings.detect_color));
+
+    printf("%s: Converting %s -> r: %u g: %u b: %u\n", __func__, settings.detect_color, detect_color.red, detect_color.green, detect_color.blue);
 
     // proflie fps
     if (settings.profile_fps != 0) {

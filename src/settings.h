@@ -13,6 +13,9 @@
 #define DEFAULT_FILE_ROOT "."
 #define DEFAULT_BASE_FILE_NAME "image"
 #define DEFAULT_PROFILE_FPS "0"
+#define DEFAULT_DETECT_COLOR "#5A6429"
+
+#define DETECT_COLOR_LENGTH (7)
 
 struct settings {
 	short run_in_background;
@@ -28,6 +31,7 @@ struct settings {
 	int video_device_count;
 	char **video_device_files;
 	int profile_fps;
+	char *detect_color;
 };
 
 void init_settings(int argc, char *argv[]);

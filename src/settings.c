@@ -34,14 +34,14 @@ void print_usage() {
     fprintf(stdout, "Usage: %s [-d] [-P pidfile]\n", program_name);
     fprintf(stdout, "       [-l logfile] [-u user] [-g group] [-F fps] [-D video-devices] [-W width]\n");
     fprintf(stdout, "       [-G height] [-j jpeg-quality] [-L log-level] [-f format] [-O output-file-format] [-A user:pass]\n");
-    fprintf(stdout, "       [-r file-root] [-b base_file_name] [-m mm-scale] [-P profile-fps]\n");
+    fprintf(stdout, "       [-r file-root] [-b base_file_name] [-m mm-scale] [-P profile-fps] [-C #RRGGBB]\n");
     fprintf(stdout, "\n");
     fprintf(stdout, "Usage: %s [--daemon]\n", program_name);
     fprintf(stdout, "       [--pid=path] [--log=path] [--user=user] [--group=group]\n");
     fprintf(stdout, "       [--fps=fps][--devices=video-devices] [--width=width] [--height=height]\n");
     fprintf(stdout, "       [--quality=quality] [--log-level=log-level] [--format=format] [--file-format=output-file-format]\n");
     fprintf(stdout, "       [--file-root=file-root] [--base-file-name=base-file-name]\n");
-    fprintf(stdout, "       [--mm-scale=mm_scale] [--profile-fps=profile-fps]\n");
+    fprintf(stdout, "       [--mm-scale=mm_scale] [--profile-fps=profile-fps] [--detect-color #RRGGBB]\n");
 
     fprintf(stdout, "Usage: %s [-h]\n", program_name);
     fprintf(stdout, "Usage: %s [-v]\n", program_name);
@@ -64,6 +64,7 @@ void init_settings(int argc, char *argv[]) {
 
     add_config_item(conf, 'F', "fps", CONFIG_INT, &settings.fps, DEFAULT_FPS);
     add_config_item(conf, 'P', "profile-fps", CONFIG_INT, &settings.profile_fps, DEFAULT_PROFILE_FPS);
+    add_config_item(conf, 'C', "detect-color", CONFIG_STR, &settings.detect_color, DEFAULT_DETECT_COLOR);
     add_config_item(conf, 'W', "width", CONFIG_INT, &settings.width, DEFAULT_WIDTH);
     add_config_item(conf, 'G', "height", CONFIG_INT, &settings.height, DEFAULT_HEIGHT);
     add_config_item(conf, 'm', "mm-scale", CONFIG_INT, &settings.mm_scale, DEFAULT_MM_SCALE);
@@ -91,6 +92,11 @@ void init_settings(int argc, char *argv[]) {
     }
     if (strcmp(v4l2_format, "z16") == 0) {
         settings.v4l2_format = V4L2_PIX_FMT_Z16;
+    }
+
+    // Parse detect color
+    if (settings.detect_color == NULL || strlen(settings.detect_color) != DETECT_COLOR_LENGTH) {
+        settings.detect_color = DEFAULT_DETECT_COLOR;
     }
     
     // Parse video devices
