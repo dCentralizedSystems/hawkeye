@@ -12,6 +12,7 @@
 #define DEFAULT_FILE_FORMAT "jpg"
 #define DEFAULT_FILE_ROOT "."
 #define DEFAULT_BASE_FILE_NAME "image"
+#define DEFAULT_PROFILE_FPS "0"
 
 struct settings {
 	short run_in_background;
@@ -26,6 +27,7 @@ struct settings {
 	char *file_format;
 	int video_device_count;
 	char **video_device_files;
+	int profile_fps;
 };
 
 void init_settings(int argc, char *argv[]);

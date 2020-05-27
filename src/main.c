@@ -230,9 +230,16 @@ int main(int argc, char *argv[]) {
     static double fps_avg = 0.0f;
     double fps;
 
+    bool calc_fps = false;
+
     bmInit();
 
     init_settings(argc, argv);
+
+    // proflie fps
+    if (settings.profile_fps != 0) {
+        calc_fps = true;
+    }
 
     // determine output file format
     if (strcmp(settings.file_format, "bmp") == 0) {
@@ -256,14 +263,16 @@ int main(int argc, char *argv[]) {
             grab_frame(fb, file_type);
         }
 
-        fps = 1.0f / ((gettime() - delta) / fbs->count);
-        if (fps_avg == 0.0f) {
-            fps_avg = fps;
-        } else {
-            fps_avg += fps;
-            fps_avg /= 2;
+        if (calc_fps) {
+            fps = 1.0f / ((gettime() - delta) / fbs->count);
+            if (fps_avg == 0.0f) {
+                fps_avg = fps;
+            } else {
+                fps_avg += fps;
+                fps_avg /= 2;
+            }
+            printf("%s: fps: %f\n", __func__, fps_avg);
         }
-        printf("%s: fps: %f\n", __func__, fps_avg);
 
         delta = gettime() - delta;
         if (delta > 0) {
