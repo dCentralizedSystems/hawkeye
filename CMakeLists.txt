@@ -34,7 +34,7 @@ add_executable(hawkeye
         src/bitmap.h
         src/bitmap.c)
 
-target_link_libraries(hawkeye jpeg v4l2)
+target_link_libraries(hawkeye jpeg v4l2 m)
 
 install(TARGETS hawkeye DESTINATION /usr/bin PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 

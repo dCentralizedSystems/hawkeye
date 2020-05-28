@@ -1,13 +1,11 @@
 
-#include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <errno.h>
 #include <signal.h>
+#include <math.h>
 
 #include "memory.h"
-#include "logger.h"
 #include "frames.h"
 #include "v4l2uvc.h"
 #include "image_utils.h"
@@ -19,8 +17,6 @@
 
 #define FRAME_BUFFER_LENGTH 8
 
-#define WRITE_BMP
-
 static int is_running = 1;
 
 typedef enum {
@@ -30,10 +26,20 @@ typedef enum {
 } output_file_t;
 
 typedef struct {
-    uint8_t red;
-    uint8_t green;
-    uint8_t blue;
+    float red;
+    float green;
+    float blue;
+    float norm;
+    float red_norm;
+    float green_norm;
+    float blue_norm;
+    float gr_norm;
+    float gb_norm;
+    float rb_norm;
 } detect_color_t;
+
+const char *p_color_detect_file_name = "detect_color_image.bmp~";
+const char *p_color_detect_file_rename = "detect_color_image.bmp";
 
 static void signal_handler(int sig){
     switch (sig) {
@@ -166,7 +172,135 @@ void write_frame(struct frame_buffer *fb, void *data, size_t data_len, output_fi
     }
 }
 
-void grab_frame(struct frame_buffer *fb, output_file_t file_type) {
+bool parseDetectColor(const char *p_detect_color_string, uint32_t detect_color_len, detect_color_t* p_detect_color) {
+
+    if (!p_detect_color_string || detect_color_len != DETECT_COLOR_LENGTH || p_detect_color_string[0] != '#') {
+        return false;
+    }
+
+    // parse
+    unsigned long hexVal = strtoul(&p_detect_color_string[1], NULL, 16);
+
+    // extract rgb
+    hexVal &= 0xFFFFFF;
+    p_detect_color->red = hexVal >> 16;
+    p_detect_color->green = (hexVal >> 8) & 0xFF;
+    p_detect_color->blue = hexVal & 0xFF;
+
+    printf("Converting %s -> r: %f g: %f b: %f\n", p_detect_color_string, p_detect_color->red, p_detect_color->green, p_detect_color->blue);
+
+    return true;
+}
+
+bool calcNorms(detect_color_t* p_detect_color) {
+
+    // avoid divide by zeroes
+    if (p_detect_color->red <= 0.0f) {
+        p_detect_color->red = 0.001f;
+    }
+
+    if (p_detect_color->green <= 0.0f) {
+        p_detect_color->green = 0.001f;
+    }
+
+    if (p_detect_color->blue <= 0.0f) {
+        p_detect_color->blue = 0.001f;
+    }
+
+    // calculate and store detect color parameters
+    p_detect_color->norm = sqrt((p_detect_color->red * p_detect_color->red) + (p_detect_color->green * p_detect_color->green) + (p_detect_color->blue * p_detect_color->blue));
+
+    p_detect_color->red_norm = p_detect_color->red / p_detect_color->norm;
+    p_detect_color->green_norm = p_detect_color->green / p_detect_color->norm;
+    p_detect_color->blue_norm = p_detect_color->blue / p_detect_color->norm;
+
+    p_detect_color->gr_norm = p_detect_color->green_norm / p_detect_color->red_norm;
+    p_detect_color->gb_norm = p_detect_color->green_norm / p_detect_color->blue_norm;
+    p_detect_color->rb_norm = p_detect_color->red_norm / p_detect_color->blue_norm;
+
+    return true;
+}
+
+bool rgb_match(detect_color_t *p_detect_color, uint8_t red, uint8_t green, uint8_t blue, float tolerance) {
+
+    /* Min / max ratio skew */
+    const float norm_min = 1.0f - tolerance;
+    const float norm_max = 1.0f + tolerance;
+
+    detect_color_t in_pix_color;
+
+    in_pix_color.red = red;
+    in_pix_color.blue = blue;
+    in_pix_color.green = green;
+
+    if (!calcNorms(&in_pix_color)) {
+        return false;
+    }
+
+    if (in_pix_color.gr_norm > p_detect_color->gr_norm * norm_min && in_pix_color.gr_norm < p_detect_color->gr_norm * norm_max) {
+        if (in_pix_color.gb_norm > p_detect_color->gb_norm * norm_min && in_pix_color.gb_norm < p_detect_color->gb_norm * norm_max) {
+            if (in_pix_color.rb_norm > p_detect_color->rb_norm * norm_min && in_pix_color.rb_norm < p_detect_color->rb_norm * norm_max) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+// assumes pixels packed RGBRGBRGB...3 bytes per pixel
+void rgb_color_detection(uint8_t *p_pix, uint32_t pixSize, int width, int height, detect_color_t *p_detect_color, float detect_tolerance) {
+
+    size_t detect_image_size = width * height;
+
+    if (pixSize != width * height * 3) {
+        printf("%s: invalid pixel buffer size (%u != %d * %d)\n", __func__, pixSize, width, height);
+        return;
+    }
+
+    uint8_t *p_detect_image_start = (uint8_t*)malloc(detect_image_size);
+    uint8_t *p_detect_image = p_detect_image_start;
+
+    // iterate over input image buffer and write 0 if specified color not detected, 1 if detected
+    uint8_t *p_input = p_pix;
+
+    for (uint32_t h=0; h < height; ++h) {
+        for (uint32_t w=0; w < width; ++w) {
+            // decode one pixel
+            uint8_t blue = *p_input++;
+            uint8_t green = *p_input++;
+            uint8_t red = *p_input++;
+
+            if (rgb_match(p_detect_color, red, green, blue, detect_tolerance)) {
+                *p_detect_image++ = 255;
+            } else {
+                *p_detect_image++ = 0;
+            }
+        }
+    }
+
+    FILE* p_file = fopen(p_color_detect_file_name, "w+");
+
+    if (p_file == NULL) {
+        panic("Can't write output image file.");
+        free(p_detect_image_start);
+        return;
+    }
+
+    // write image
+    bmWriteBitmap(p_file, width, height, 1, p_detect_image_start, detect_image_size);
+
+    fflush(p_file);
+    fclose(p_file);
+
+    /* Now that write is complete, rename the file */
+    rename(p_color_detect_file_name, p_color_detect_file_rename);
+
+    free(p_detect_image_start);
+    p_detect_image_start = NULL;
+}
+
+void grab_frame(struct frame_buffer *fb, output_file_t file_type, detect_color_t detect_color, bool b_color_detect, float detect_tolerance) {
     uint8_t *buf = NULL;
     uint32_t buf_size = 0;
 
@@ -180,7 +314,7 @@ void grab_frame(struct frame_buffer *fb, output_file_t file_type) {
         buf = malloc(buf_size);
 
     } else {
-        buf = (uint8_t*)malloc(fb->vd->framebuffer_size);
+        buf = (uint8_t *) malloc(fb->vd->framebuffer_size);
         buf_size = fb->vd->framebuffer_size;
     }
 
@@ -197,25 +331,34 @@ void grab_frame(struct frame_buffer *fb, output_file_t file_type) {
         switch (fb->vd->format_in) {
             case V4L2_PIX_FMT_YUYV:
                 if (file_type == OUTPUT_FILE_TYPE_BMP) {
-                    frame_size = compress_yuyv_to_bmp(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width, fb->vd->height);
+                    frame_size = compress_yuyv_to_bmp(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width,
+                                                      fb->vd->height);
+
+                    // perform color detection, if enabled
+                    if (b_color_detect) {
+                        rgb_color_detection(buf, frame_size, fb->vd->width, fb->vd->height, &detect_color, detect_tolerance);
+                    }
                 } else {
-                    frame_size = compress_yuyv_to_jpeg(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width, fb->vd->height, fb->vd->jpeg_quality);
+                    frame_size = compress_yuyv_to_jpeg(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width,
+                                                       fb->vd->height, fb->vd->jpeg_quality);
                 }
                 break;
             case V4L2_PIX_FMT_Z16:
                 if (file_type == OUTPUT_FILE_TYPE_BMP) {
-                    frame_size = compress_z16_to_bmp(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width, fb->vd->height, settings.mm_scale);
+                    frame_size = compress_z16_to_bmp(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width,
+                                                     fb->vd->height, settings.mm_scale);
                 } else {
-                    frame_size = compress_z16_to_jpeg(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width, fb->vd->height, fb->vd->jpeg_quality, settings.mm_scale);
+                    frame_size = compress_z16_to_jpeg(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width,
+                                                      fb->vd->height, fb->vd->jpeg_quality, settings.mm_scale);
                 }
                 break;
             default:
                 panic("Video device is using unknown format.");
                 break;
         }
-    }
 
-    write_frame(fb, buf, frame_size, file_type);
+        write_frame(fb, buf, frame_size, file_type);
+    }
 
     free(buf);
     buf = NULL;
@@ -223,26 +366,6 @@ void grab_frame(struct frame_buffer *fb, output_file_t file_type) {
     requeue_device_buffer(fb->vd);
 }
 
-detect_color_t parseDetectColor(const char *p_detect_color, uint32_t detect_color_len) {
-    detect_color_t out = { 0, 0, 0 };
-
-    if (!p_detect_color || detect_color_len != DETECT_COLOR_LENGTH || p_detect_color[0] != '#') {
-        return out;
-    }
-
-    // parse
-    unsigned long hexVal = strtoul(&p_detect_color[1], NULL, 16);
-
-    // extract rgb
-    hexVal &= 0xFFFFFF;
-    out.red = hexVal >> 16;
-    out.green = (hexVal >> 8) & 0xFF;
-    out.blue = hexVal & 0xFF;
-
-    printf("Converting %s -> r: %u g: %u b: %u\n", p_detect_color, out.red, out.green, out.blue);
-
-    return out;
-}
 
 int main(int argc, char *argv[]) {
     int i;
@@ -258,6 +381,7 @@ int main(int argc, char *argv[]) {
     double fps;
 
     detect_color_t detect_color;
+    bool b_detect_color = false;
 
     bool calc_fps = false;
 
@@ -266,9 +390,25 @@ int main(int argc, char *argv[]) {
     init_settings(argc, argv);
 
     // detect color
-    detect_color = parseDetectColor(settings.detect_color, strlen(settings.detect_color));
+    b_detect_color = parseDetectColor(settings.detect_color, strlen(settings.detect_color), &detect_color);
 
-    printf("%s: Converting %s -> r: %u g: %u b: %u\n", __func__, settings.detect_color, detect_color.red, detect_color.green, detect_color.blue);
+    if (b_detect_color) {
+        b_detect_color = calcNorms(&detect_color);
+        if (!b_detect_color) {
+            printf("%s: detect color disabled, invalid color specified", __func__);
+        }
+    }
+
+    float color_detect_tolerance = ((float)settings.detect_tolerance) / 100.0f;
+
+    // bound color-detect tolerance percentage
+    if (color_detect_tolerance < 0.05f) {
+        color_detect_tolerance = 0.05f;
+    } else if (color_detect_tolerance > 0.90f) {
+        color_detect_tolerance = 0.90f;
+    }
+
+    printf("%s: detect tolerance %f%% from %d\n", __func__, color_detect_tolerance, settings.detect_tolerance);
 
     // proflie fps
     if (settings.profile_fps != 0) {
@@ -294,7 +434,7 @@ int main(int argc, char *argv[]) {
         delta = gettime();
         for (i = 0; i < fbs->count; i++) {
             fb = &fbs->buffers[i];
-            grab_frame(fb, file_type);
+            grab_frame(fb, file_type, detect_color, b_detect_color, color_detect_tolerance);
         }
 
         if (calc_fps) {
