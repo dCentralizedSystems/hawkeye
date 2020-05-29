@@ -5,8 +5,18 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "color_detect.h"
+
+// internal type to hold detections and associated data
+typedef struct {
+    blob_t blobs[COLOR_DETECT_NUM_BLOBS_MAX];
+    size_t num_blobs;
+} detections_t;
+
+// the detections data structure
+static detections_t detections;
 
 bool calcNorms(detect_color_t* p_detect_color) {
 
@@ -64,6 +74,34 @@ bool rgb_match(detect_color_t *p_detect_color, uint8_t red, uint8_t green, uint8
     return false;
 }
 
+static void clear_blobs(void) {
+    detections.num_blobs = 0;
+
+    for (size_t i=0; i < COLOR_DETECT_NUM_BLOBS_MAX; ++i) {
+        memset(&detections.blobs[i], 0, sizeof(blob_t));
+    }
+}
+
+static int detect_blobs(uint8_t* p_image, int width, int height, uint8_t detect_color) {
+
+    uint8_t *p_curr = p_image;
+
+    if (p_curr == NULL || width <= 0 || height <= 0) {
+        return -1;
+    }
+
+    // Iterate over input image
+    for (size_t h=0; h < height; ++h) {
+        for (size_t w=0; w < width; ++w) {
+            // look for pixel value
+            if (*p_curr++ == detect_color) {
+
+            }
+        }
+    }
+    return 0;
+}
+
 // assumes pixels packed RGBRGBRGB...3 bytes per pixel
 void rgb_color_detection(uint8_t *p_pix, uint32_t pixSize, int width, int height, detect_color_t *p_detect_color, float detect_tolerance) {
 
@@ -117,5 +155,6 @@ void rgb_color_detection(uint8_t *p_pix, uint32_t pixSize, int width, int height
     free(p_detect_image_start);
     p_detect_image_start = NULL;
 }
+
 
 

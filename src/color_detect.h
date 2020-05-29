@@ -7,6 +7,12 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+// Maximum number of blobs detected
+#define COLOR_DETECT_NUM_BLOBS_MAX      (10)
+
+// Minimum size of blob, in pixels
+#define COLOR_DETECT_BLOB_SIZE_MIN      (25)
+
 // Color detection structure
 typedef struct {
     float red;
@@ -21,6 +27,32 @@ typedef struct {
     float rb_norm;
 } detect_color_t;
 
+// blob data structure
+typedef struct {
+    // validity flag
+    bool valid;
+
+    // bounding-box
+    uint32_t bb_x_min;
+    uint32_t bb_x_max;
+    uint32_t bb_y_min;
+    uint32_t bb_y_max;
+
+    // centroid
+    uint32_t cent_x;
+    uint32_t cent_y;
+
+    // number of pixels
+    uint32_t num_pixels;
+
+    // last row extents
+    uint32_t last_row_min;
+    uint32_t last_row_max;
+
+    // completion flag
+    bool complete;
+} blob_t;
+
 // Takes a detect_color_t and calculates normalized and filter normalized values
 bool calcNorms(detect_color_t* p_detect_color);
 
@@ -29,5 +61,11 @@ bool rgb_match(detect_color_t *p_detect_color, uint8_t red, uint8_t green, uint8
 
 // assumes pixels packed RGBRGBRGB...3 bytes per pixel
 void rgb_color_detection(uint8_t *p_pix, uint32_t pixSize, int width, int height, detect_color_t *p_detect_color, float detect_tolerance);
+
+// Retrieve blob by index from detection results
+blob_t* get_blob(size_t index);
+
+// Get number of blobs from detection results
+size_t get_num_blobs(void);
 
 #endif //_COLOR_DETECT_H
