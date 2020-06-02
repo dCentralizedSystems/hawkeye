@@ -304,12 +304,14 @@ static void new_or_append_blob(int line_min, int line_max, int h) {
     }
 }
 
+#if 0
 static void debug_blobs(void) {
     for (size_t i=0; i < COLOR_DETECT_NUM_BLOBS_MAX; ++i) {
         blob_t* p_blob = &detections.blobs[i];
         printf("%s: %lu tp: %u minx: %u maxx: %u miny: %u maxy: %u\n", __func__, i, p_blob->num_pixels, p_blob->bb_x_min, p_blob->bb_x_max, p_blob->bb_y_min, p_blob->bb_y_max);
     }
 }
+#endif
 
 static int detect_blobs(uint8_t* p_image, int width, int height, uint8_t detect_color) {
 
@@ -397,8 +399,38 @@ void draw_blobs(uint8_t *p_pix, int width, int height, uint8_t draw_color, bool 
     }
 }
 
+bool write_blob_data_to_image(blob_t* p_blob, uint8_t* p_image, uint32_t image_size, int stride, int height) {
+    bool retVal = false;
+
+    if (!p_blob || !p_image || image_size != stride * height || stride <= 0 || height <= 0) {
+        return false;
+    }
+
+    // Allocate a buffer equal to the size of the first row
+    char *p_line_buf = (char*)calloc(stride , 1);
+
+    if (!p_line_buf) {
+        return false;
+    }
+
+    // validate blob
+    if (!p_blob->valid || !p_blob->complete || p_blob->num_pixels == 0) {
+        goto _cleanUp;
+    }
+
+    // serialize blob to line_buf
+    sprintf(p_line_buf, "1,%u,%u,%u,%u,%u\n", p_blob->bb_x_min, p_blob->bb_x_max, p_blob->bb_y_min, p_blob->bb_y_max, p_blob->num_pixels);
+
+    // replace the first line in the image
+    memcpy(p_image, p_line_buf, stride);
+
+    _cleanUp:
+    free(p_line_buf);
+    return retVal;
+}
+
 // assumes pixels packed RGBRGBRGB...3 bytes per pixel
-void rgb_color_detection(uint8_t *p_pix, uint32_t pixSize, int width, int height, detect_color_t *p_detect_color, float detect_tolerance, bool b_write_image) {
+void rgb_color_detection(uint8_t *p_pix, uint32_t pixSize, int width, int height, detect_color_t *p_detect_color, float detect_tolerance, bool b_write_image, bool b_write_detection) {
 
     size_t detect_image_size = width * height;
 
@@ -435,6 +467,18 @@ void rgb_color_detection(uint8_t *p_pix, uint32_t pixSize, int width, int height
         //debug_blobs();
     }
 
+    if (b_write_detection) {
+        int index = find_largest_blob();
+
+        if (index >= 0) {
+            blob_t *p_largest = &detections.blobs[index];
+
+            if (p_largest) {
+                write_blob_data_to_image(p_largest, p_pix, pixSize, width * 3, height);
+            }
+        }
+    }
+
     if (b_write_image) {
         FILE *p_file = fopen(color_detect_file_name, "w+");
 
@@ -457,6 +501,3 @@ void rgb_color_detection(uint8_t *p_pix, uint32_t pixSize, int width, int height
     free(p_detect_image_start);
     p_detect_image_start = NULL;
 }
-
-
-
