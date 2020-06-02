@@ -302,13 +302,29 @@ void draw_blob(uint8_t* p_pix, int width, int height, blob_t* p_blob, uint8_t dr
     }
 }
 
-void draw_blobs(uint8_t *p_pix, int width, int height, uint8_t draw_color) {
+void draw_blobs(uint8_t *p_pix, int width, int height, uint8_t draw_color, bool b_largest_only) {
     // Draw bounding box for each blob
+    int largest_pixel_size = 0;
+    int largest_blob_index = -1;
+
     for (size_t i=0; i < COLOR_DETECT_NUM_BLOBS_MAX; ++i) {
-        blob_t* p_blob = &detections.blobs[i];
+        blob_t *p_blob = &detections.blobs[i];
 
         if (p_blob->valid && p_blob->complete) {
-            draw_blob(p_pix, width, height, p_blob, draw_color);
+            if (p_blob->num_pixels > largest_pixel_size) {
+                largest_pixel_size = p_blob->num_pixels;
+                largest_blob_index = i;
+            }
+
+            if (!b_largest_only) {
+                draw_blob(p_pix, width, height, p_blob, draw_color);
+            }
+        }
+    }
+
+    if (b_largest_only && largest_pixel_size > 0 && largest_blob_index >= 0) {
+        if (&detections.blobs[largest_blob_index].valid && &detections.blobs[largest_blob_index].complete) {
+            draw_blob(p_pix, width, height, &detections.blobs[largest_blob_index], draw_color);
         }
     }
 }
@@ -347,7 +363,7 @@ void rgb_color_detection(uint8_t *p_pix, uint32_t pixSize, int width, int height
     detect_blobs(p_detect_image_start, width, height, DETECT_COLOR_TABLE_INDEX);
 
     if (b_write_image) {
-        draw_blobs(p_detect_image_start, width, height, DRAW_BLOB_COLOR_TABLE_INDEX);
+        draw_blobs(p_detect_image_start, width, height, DRAW_BLOB_COLOR_TABLE_INDEX, true);
         //debug_blobs();
     }
 
