@@ -196,6 +196,79 @@ static int new_blob(int w_min, int w_max, int h) {
     return -1;
 }
 
+static int find_largest_blob(void) {
+    int largest_pixel_size = 0;
+    int largest_blob_index = -1;
+
+    for (size_t i=0; i < COLOR_DETECT_NUM_BLOBS_MAX; ++i) {
+        blob_t *p_blob = &detections.blobs[i];
+
+        if (p_blob->valid && p_blob->complete) {
+            if (p_blob->num_pixels > largest_pixel_size) {
+                largest_pixel_size = p_blob->num_pixels;
+                largest_blob_index = i;
+            }
+        }
+    }
+
+    return largest_blob_index;
+}
+
+static bool bb_overlap(blob_t* p_blob1, blob_t* p_blob2) {
+    if ((p_blob1->bb_x_min > p_blob2->bb_x_max) || (p_blob2->bb_x_min > p_blob1->bb_x_max)) {
+        return false;
+    }
+    if ((p_blob1->bb_y_min > p_blob2->bb_y_max) || (p_blob2->bb_y_min > p_blob1->bb_y_max)) {
+        return false;
+    }
+    return true;
+}
+
+static void bb_combine(blob_t* p_into, blob_t* p_from) {
+    if (p_into->bb_x_min > p_from->bb_x_min) {
+        p_into->bb_x_min = p_from->bb_x_min;
+    }
+
+    if (p_into->bb_x_max < p_from->bb_x_max) {
+        p_into->bb_x_max = p_from->bb_x_max;
+    }
+
+    if (p_into->bb_y_min > p_from->bb_y_min) {
+        p_into->bb_y_min = p_from->bb_y_min;
+    }
+
+    if (p_into->bb_y_max < p_from->bb_y_max) {
+        p_into->bb_y_max = p_from->bb_y_max;
+    }
+
+    p_into->num_pixels += p_from->num_pixels;
+
+    memset(p_from, 0, sizeof(blob_t));
+}
+
+static void combine_blobs_from_largest(void) {
+    int largest_blob_index = find_largest_blob();
+
+    if (largest_blob_index >= 0) {
+        blob_t* p_largest = &detections.blobs[largest_blob_index];
+
+        for (size_t i=0; i < COLOR_DETECT_NUM_BLOBS_MAX; ++i) {
+            // for every blob but the largest
+            if (i != largest_blob_index) {
+                blob_t *p_blob = &detections.blobs[i];
+
+                if (p_blob->valid && p_blob->complete) {
+                    // check overlap
+                    if (bb_overlap(p_largest, p_blob)) {
+                        // combine blobs into largest
+                        bb_combine(p_largest, p_blob);
+                    }
+                }
+            }
+        }
+    }
+}
+
 static void cull_blobs(int curr_height) {
     for (size_t i=0; i < COLOR_DETECT_NUM_BLOBS_MAX; ++i) {
         blob_t* p_curr = &detections.blobs[i];
@@ -280,6 +353,9 @@ static int detect_blobs(uint8_t* p_image, int width, int height, uint8_t detect_
     }
     // No b_in_line check needed here, since the end of the image is also a row end
 
+    // largest blob accretes all overlapping blobs
+    combine_blobs_from_largest();
+
     return 0;
 }
 
@@ -304,27 +380,19 @@ void draw_blob(uint8_t* p_pix, int width, int height, blob_t* p_blob, uint8_t dr
 
 void draw_blobs(uint8_t *p_pix, int width, int height, uint8_t draw_color, bool b_largest_only) {
     // Draw bounding box for each blob
-    int largest_pixel_size = 0;
-    int largest_blob_index = -1;
+    if (b_largest_only) {
+        int largest_blob_index = find_largest_blob();
 
-    for (size_t i=0; i < COLOR_DETECT_NUM_BLOBS_MAX; ++i) {
-        blob_t *p_blob = &detections.blobs[i];
+        if (largest_blob_index >= 0) {
+            draw_blob(p_pix, width, height, &detections.blobs[largest_blob_index], draw_color);
+        }
+    } else {
+        for (size_t i = 0; i < COLOR_DETECT_NUM_BLOBS_MAX; ++i) {
+            blob_t *p_blob = &detections.blobs[i];
 
-        if (p_blob->valid && p_blob->complete) {
-            if (p_blob->num_pixels > largest_pixel_size) {
-                largest_pixel_size = p_blob->num_pixels;
-                largest_blob_index = i;
-            }
-
-            if (!b_largest_only) {
+            if (p_blob->valid && p_blob->complete) {
                 draw_blob(p_pix, width, height, p_blob, draw_color);
             }
-        }
-    }
-
-    if (b_largest_only && largest_pixel_size > 0 && largest_blob_index >= 0) {
-        if (&detections.blobs[largest_blob_index].valid && &detections.blobs[largest_blob_index].complete) {
-            draw_blob(p_pix, width, height, &detections.blobs[largest_blob_index], draw_color);
         }
     }
 }
