@@ -7,7 +7,7 @@
 #define DEFAULT_HEIGHT "480"
 #define DEFAULT_MM_SCALE "0"
 #define DEFAULT_JPEG_QUALITY "80"
-#define DEFAULT_VIDEO_DEVICE_FILES "/dev/video0"
+#define DEFAULT_VIDEO_DEVICE_FILE "/dev/video0"
 #define DEFAULT_V4L2_FORMAT "z16"
 #define DEFAULT_FILE_FORMAT "jpg"
 #define DEFAULT_FILE_ROOT "."
@@ -30,7 +30,7 @@ struct settings {
 	int v4l2_format;
 	char *file_format;
 	int video_device_count;
-	char **video_device_files;
+	char *video_device_file;
 	int profile_fps;
 
 	// Color-detect parameters

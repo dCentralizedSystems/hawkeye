@@ -80,7 +80,7 @@ double get_real_fps(struct video_device *vd, unsigned int rounds) {
 }
 */
 
-struct frame_buffers *init_frame_buffers(size_t device_count, char *device_names[]) {
+struct frame_buffers *init_frame_buffers(size_t device_count, char *device_name) {
     int i;
     struct frame_buffer *fb;
     struct frame_buffers *fbs;
@@ -93,7 +93,7 @@ struct frame_buffers *init_frame_buffers(size_t device_count, char *device_names
         fb = &fbs->buffers[i];
 
         create_frame_buffer(fb, FRAME_BUFFER_LENGTH);
-        if ((fb->vd = create_video_device(device_names[i], settings.width, settings.height, settings.fps, settings.v4l2_format, settings.jpeg_quality)) == NULL) {
+        if ((fb->vd = create_video_device(device_name, settings.width, settings.height, settings.fps, settings.v4l2_format, settings.jpeg_quality)) == NULL) {
             user_panic("Could not initialize video device.");
         }
 
@@ -310,7 +310,7 @@ int main(int argc, char *argv[]) {
 
     init_signals();
 
-    fbs = init_frame_buffers(settings.video_device_count, settings.video_device_files);
+    fbs = init_frame_buffers(settings.video_device_count, settings.video_device_file);
 
     while (is_running) {
         delta = gettime();

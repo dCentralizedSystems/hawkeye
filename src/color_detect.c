@@ -463,7 +463,7 @@ void rgb_color_detection(uint8_t *p_pix, uint32_t pixSize, int width, int height
     detect_blobs(p_detect_image_start, width, height, DETECT_COLOR_TABLE_INDEX);
 
     if (b_write_image) {
-        draw_blobs(p_detect_image_start, width, height, DRAW_BLOB_COLOR_TABLE_INDEX, true);
+        draw_blobs(p_detect_image_start, width, height, DRAW_BLOB_COLOR_TABLE_INDEX, false);
         //debug_blobs();
     }
 

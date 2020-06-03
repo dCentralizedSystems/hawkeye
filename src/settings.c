@@ -32,14 +32,14 @@ static void normalize_path(char **path, const char *error) {
 
 void print_usage() {
     fprintf(stdout, "Usage: %s [-d] [-P pidfile]\n", program_name);
-    fprintf(stdout, "       [-l logfile] [-u user] [-g group] [-F fps] [-D video-devices] [-W width]\n");
+    fprintf(stdout, "       [-l logfile] [-u user] [-g group] [-F fps] [-D video-device] [-W width]\n");
     fprintf(stdout, "       [-G height] [-j jpeg-quality] [-L log-level] [-f format] [-O output-file-format] [-A user:pass]\n");
     fprintf(stdout, "       [-r file-root] [-b base_file_name] [-m mm-scale] [-P profile-fps] [-C #RRGGBB]\n");
     fprintf(stdout, "       [-T detect-tolerance-percent]\n");
     fprintf(stdout, "\n");
     fprintf(stdout, "Usage: %s [--daemon]\n", program_name);
     fprintf(stdout, "       [--pid=path] [--log=path] [--user=user] [--group=group]\n");
-    fprintf(stdout, "       [--fps=fps][--devices=video-devices] [--width=width] [--height=height]\n");
+    fprintf(stdout, "       [--fps=fps][--device=video-device] [--width=width] [--height=height]\n");
     fprintf(stdout, "       [--quality=quality] [--log-level=log-level] [--format=format] [--file-format=output-file-format]\n");
     fprintf(stdout, "       [--file-root=file-root] [--base-file-name=base-file-name]\n");
     fprintf(stdout, "       [--mm-scale=mm_scale] [--profile-fps=profile-fps] [--detect-color=#RRGGBB]\n");
@@ -56,9 +56,8 @@ void print_usage() {
 
 void init_settings(int argc, char *argv[]) {
     struct config *conf;
-    char *v4l2_format, *video_device_files;
+    char *v4l2_format;
     short display_version, display_usage;
-    int i, video_devices_len;
 
     conf = create_config();
 
@@ -76,7 +75,7 @@ void init_settings(int argc, char *argv[]) {
     add_config_item(conf, 'b', "base-file-name", CONFIG_STR, &settings.base_file_name, DEFAULT_BASE_FILE_NAME);
     add_config_item(conf, 'f', "format", CONFIG_STR, &v4l2_format, DEFAULT_V4L2_FORMAT);
     add_config_item(conf, 'O', "file-format", CONFIG_STR, &settings.file_format, DEFAULT_FILE_FORMAT);
-    add_config_item(conf, 'D', "devices", CONFIG_STR, &video_device_files, DEFAULT_VIDEO_DEVICE_FILES);
+    add_config_item(conf, 'D', "device", CONFIG_STR, &settings.video_device_file, DEFAULT_VIDEO_DEVICE_FILE);
     add_config_item(conf, 'h', "help", CONFIG_BOOL, &display_usage, "0");
     add_config_item(conf, 'v', "version", CONFIG_BOOL, &display_version, "0");
 
@@ -103,19 +102,7 @@ void init_settings(int argc, char *argv[]) {
     }
     
     // Parse video devices
-    settings.video_device_count = 0;
-    settings.video_device_files = malloc(32 * sizeof(char *));
-    settings.video_device_files[settings.video_device_count++] = video_device_files;
-
-    video_devices_len = strlen(video_device_files);
-    for (i = 0; i < video_devices_len; i++) {
-        if (video_device_files[i] == ':') {
-            video_device_files[i] = '\0';
-            if (i + 1 < video_devices_len) {
-                settings.video_device_files[settings.video_device_count++] = &video_device_files[i + 1];
-            }
-        }
-    }
+    settings.video_device_count = 1;
 
     free(v4l2_format);
 
@@ -131,7 +118,5 @@ void init_settings(int argc, char *argv[]) {
 }
 
 void cleanup_settings() {
-    free(settings.video_device_files[0]);
-    free(settings.video_device_files);
 }
 
