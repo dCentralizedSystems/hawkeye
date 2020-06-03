@@ -33,7 +33,7 @@ static void normalize_path(char **path, const char *error) {
 void print_usage() {
     fprintf(stdout, "Usage: %s [-d] [-P pidfile]\n", program_name);
     fprintf(stdout, "       [-l logfile] [-u user] [-g group] [-F fps] [-D video-device] [-W width]\n");
-    fprintf(stdout, "       [-G height] [-j jpeg-quality] [-L log-level] [-f format] [-O output-file-format] [-A user:pass]\n");
+    fprintf(stdout, "       [-H height] [-j jpeg-quality] [-L log-level] [-f format] [-O output-file-format] [-A user:pass]\n");
     fprintf(stdout, "       [-r file-root] [-b base_file_name] [-m mm-scale] [-P profile-fps] [-C #RRGGBB]\n");
     fprintf(stdout, "       [-T detect-tolerance-percent]\n");
     fprintf(stdout, "\n");
@@ -68,7 +68,7 @@ void init_settings(int argc, char *argv[]) {
     add_config_item(conf, 'C', "detect-color", CONFIG_STR, &settings.detect_color, DEFAULT_DETECT_COLOR);
     add_config_item(conf, 'T', "detect-tolerance", CONFIG_INT, &settings.detect_tolerance, DEFAULT_DETECT_TOLERANCE);
     add_config_item(conf, 'W', "width", CONFIG_INT, &settings.width, DEFAULT_WIDTH);
-    add_config_item(conf, 'G', "height", CONFIG_INT, &settings.height, DEFAULT_HEIGHT);
+    add_config_item(conf, 'H', "height", CONFIG_INT, &settings.height, DEFAULT_HEIGHT);
     add_config_item(conf, 'm', "mm-scale", CONFIG_INT, &settings.mm_scale, DEFAULT_MM_SCALE);
     add_config_item(conf, 'j', "quality", CONFIG_INT, &settings.jpeg_quality, DEFAULT_JPEG_QUALITY);
     add_config_item(conf, 'r', "file-root", CONFIG_STR, &settings.file_root, DEFAULT_FILE_ROOT);
