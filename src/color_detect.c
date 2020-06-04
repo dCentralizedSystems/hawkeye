@@ -466,8 +466,10 @@ bool write_blob_data_to_image(uint8_t* p_image, uint32_t image_size, int stride,
         }
     }
 
-    // append a line-feed
-    strcat(p_line_buf, "\n");
+    if (blob_string_remaining > 0) {
+        // append a line-feed
+        strcat(p_line_buf, "\n");
+    }
 
     // replace the first line in the image
     memcpy(p_image, p_line_buf, stride);
