@@ -217,7 +217,7 @@ void grab_frame(struct frame_buffer *fb, output_file_t file_type, detect_color_t
 
                     // perform color detection, if enabled
                     if (b_color_detect) {
-                        rgb_color_detection(buf, frame_size, fb->vd->width, fb->vd->height, &detect_color, detect_tolerance, true, true);
+                        rgb_color_detection(buf, frame_size, fb->vd->width, fb->vd->height, &detect_color, detect_tolerance, true, true, true);
                     }
                 } else {
                     frame_size = compress_yuyv_to_jpeg(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width,

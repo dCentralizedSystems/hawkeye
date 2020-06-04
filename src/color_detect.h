@@ -55,7 +55,15 @@ bool calcNorms(detect_color_t* p_detect_color);
 bool rgb_match(detect_color_t *p_detect_color, uint8_t red, uint8_t green, uint8_t blue, float tolerance);
 
 // assumes pixels packed RGBRGBRGB...3 bytes per pixel
-void rgb_color_detection(uint8_t *p_pix, uint32_t pixSize, int width, int height, detect_color_t *p_detect_color, float detect_tolerance, bool b_write_image, bool b_write_detection);
+void rgb_color_detection(uint8_t *p_pix,
+                         uint32_t pixSize,
+                         int width,
+                         int height,
+                         detect_color_t *p_detect_color,
+                         float detect_tolerance,
+                         bool b_write_image,
+                         bool b_write_detection,
+                         bool b_write_all_detections);
 
 // Retrieve blob by index from detection results
 blob_t* get_blob(size_t index);

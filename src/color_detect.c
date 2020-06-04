@@ -399,7 +399,84 @@ void draw_blobs(uint8_t *p_pix, int width, int height, uint8_t draw_color, bool 
     }
 }
 
-bool write_blob_data_to_image(blob_t* p_blob, uint8_t* p_image, uint32_t image_size, int stride, int height) {
+static int num_complete_blobs(void) {
+    int num_blobs = 0;
+
+    for (size_t i=0; i < COLOR_DETECT_NUM_BLOBS_MAX; ++i) {
+        blob_t *p_blob = &detections.blobs[i];
+        if (p_blob->valid && p_blob->complete) {
+            num_blobs++;
+        }
+    }
+    return num_blobs;
+}
+
+bool write_blob_data_to_image(uint8_t* p_image, uint32_t image_size, int stride, int height) {
+    bool retVal = false;
+
+    if (!p_image || image_size != stride * height || stride <= 0 || height <= 0) {
+        return false;
+    }
+
+    // only write complete blobs, check if there are any to write
+    int num_blobs = num_complete_blobs();
+
+    if (num_blobs == 0) {
+        return true;
+    }
+
+    // Allocate a buffer equal to the size of the first row
+    char *p_line_buf = (char*)calloc(stride , 1);
+
+    if (!p_line_buf) {
+        return false;
+    }
+
+    // keep track of remaining space in first image line
+    int blob_string_remaining = stride;
+
+    // write num blobs first
+    int num_blob_string_len = snprintf(p_line_buf, blob_string_remaining, "%d", num_blobs);
+
+    blob_string_remaining -= num_blob_string_len;
+
+    int blob_index = 0;
+
+    // add each complete and valid blob to string
+    for (size_t i = 0; i < COLOR_DETECT_NUM_BLOBS_MAX; ++i) {
+        blob_t *p_blob = &detections.blobs[i];
+
+        // validate blob
+        if (p_blob->valid && p_blob->complete && p_blob->num_pixels != 0) {
+            char blob_string[128] = { 0 }; // 10 characters per integer plus 6 commas plus null terminator
+
+            int blob_string_len = snprintf(blob_string, 128, ",%d,%d,%d,%d,%d,%d", blob_index, p_blob->bb_x_min, p_blob->bb_x_max,
+                                           p_blob->bb_y_min, p_blob->bb_y_max, p_blob->num_pixels);
+
+            // ensure room to append in p_line_buf
+            if (blob_string_remaining < blob_string_len) {
+                break;
+            }
+
+            // write blob string
+            strncat(p_line_buf, blob_string, blob_string_len);
+
+            blob_string_remaining -= blob_string_len;
+            blob_index++;
+        }
+    }
+
+    // append a line-feed
+    strcat(p_line_buf, "\n");
+
+    // replace the first line in the image
+    memcpy(p_image, p_line_buf, stride);
+
+    free(p_line_buf);
+    return retVal;
+}
+
+bool write_single_blob_data_to_image(blob_t* p_blob, uint8_t* p_image, uint32_t image_size, int stride, int height) {
     bool retVal = false;
 
     if (!p_blob || !p_image || image_size != stride * height || stride <= 0 || height <= 0) {
@@ -419,7 +496,7 @@ bool write_blob_data_to_image(blob_t* p_blob, uint8_t* p_image, uint32_t image_s
     }
 
     // serialize blob to line_buf
-    sprintf(p_line_buf, "1,%u,%u,%u,%u,%u\n", p_blob->bb_x_min, p_blob->bb_x_max, p_blob->bb_y_min, p_blob->bb_y_max, p_blob->num_pixels);
+    sprintf(p_line_buf, "1,%u,%u,%u,%u,%u,%u\n", 0, p_blob->bb_x_min, p_blob->bb_x_max, p_blob->bb_y_min, p_blob->bb_y_max, p_blob->num_pixels);
 
     // replace the first line in the image
     memcpy(p_image, p_line_buf, stride);
@@ -430,7 +507,15 @@ bool write_blob_data_to_image(blob_t* p_blob, uint8_t* p_image, uint32_t image_s
 }
 
 // assumes pixels packed RGBRGBRGB...3 bytes per pixel
-void rgb_color_detection(uint8_t *p_pix, uint32_t pixSize, int width, int height, detect_color_t *p_detect_color, float detect_tolerance, bool b_write_image, bool b_write_detection) {
+void rgb_color_detection(uint8_t *p_pix,
+                        uint32_t pixSize,
+                        int width,
+                        int height,
+                        detect_color_t *p_detect_color,
+                        float detect_tolerance,
+                        bool b_write_image,
+                        bool b_write_detection,
+                        bool b_write_all_detections) {
 
     size_t detect_image_size = width * height;
 
@@ -467,14 +552,18 @@ void rgb_color_detection(uint8_t *p_pix, uint32_t pixSize, int width, int height
         //debug_blobs();
     }
 
+    // blob detection image write
     if (b_write_detection) {
-        int index = find_largest_blob();
-
-        if (index >= 0) {
-            blob_t *p_largest = &detections.blobs[index];
-
-            if (p_largest) {
-                write_blob_data_to_image(p_largest, p_pix, pixSize, width * 3, height);
+        if (b_write_all_detections) {
+            write_blob_data_to_image(p_pix, pixSize, width * 3, height);
+        } else {
+            // write the largest blob
+            int index = find_largest_blob();
+            if (index >= 0) {
+                blob_t *p_largest = &detections.blobs[index];
+                if (p_largest) {
+                    write_single_blob_data_to_image(p_largest, p_pix, pixSize, width * 3, height);
+                }
             }
         }
     }
