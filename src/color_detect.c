@@ -22,10 +22,6 @@
 #define NO_DETECT_COLOR_TABLE_INDEX         (BLACK_COLOR_TABLE_INDEX)
 #define DRAW_BLOB_COLOR_TABLE_INDEX         (GREEN_COLOR_TABLE_INDEX)
 
-// Filenames for output color-detect image
-static const char* color_detect_file_name = "color-detect-image.bmp~";
-static const char* color_detect_file_rename = "color-detect-image.bmp";
-
 // internal type to hold detections and associated data
 typedef struct {
     blob_t blobs[COLOR_DETECT_NUM_BLOBS_MAX];
@@ -517,7 +513,8 @@ void rgb_color_detection(uint8_t *p_pix,
                         float detect_tolerance,
                         bool b_write_image,
                         bool b_write_detection,
-                        bool b_write_all_detections) {
+                        bool b_write_all_detections,
+                        char* color_detect_image_path) {
 
     size_t detect_image_size = width * height;
 
@@ -571,6 +568,14 @@ void rgb_color_detection(uint8_t *p_pix,
     }
 
     if (b_write_image) {
+        static char color_detect_file_temp_name[128] = { 0 };
+        static char color_detect_file_name[128] = { 0 };
+
+        if (color_detect_file_temp_name[0] == 0 || color_detect_file_name[0] == 0) {
+            sprintf(color_detect_file_temp_name, "%s/%s.bmp~", color_detect_image_path, "color-detect-image");
+            sprintf(color_detect_file_name, "%s/%s.bmp", color_detect_image_path, "color-detect-image");
+        }
+
         FILE *p_file = fopen(color_detect_file_name, "w+");
 
         if (p_file == NULL) {
@@ -586,7 +591,7 @@ void rgb_color_detection(uint8_t *p_pix,
         fclose(p_file);
 
         /* Now that write is complete, rename the file */
-        rename(color_detect_file_name, color_detect_file_rename);
+        rename(color_detect_file_temp_name, color_detect_file_name);
     }
 
     free(p_detect_image_start);

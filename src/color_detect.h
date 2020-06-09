@@ -63,7 +63,8 @@ void rgb_color_detection(uint8_t *p_pix,
                          float detect_tolerance,
                          bool b_write_image,
                          bool b_write_detection,
-                         bool b_write_all_detections);
+                         bool b_write_all_detections,
+                         char* color_detect_image_path);
 
 // Retrieve blob by index from detection results
 blob_t* get_blob(size_t index);

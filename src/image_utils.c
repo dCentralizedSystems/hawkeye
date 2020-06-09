@@ -33,9 +33,6 @@
 
 #include "logger.h"
 
-/* For detection of apriltags */
-#include "apriltag_process.h"
-
 #define OUTPUT_BUF_SIZE  4096
 
 typedef struct {
