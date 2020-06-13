@@ -65,7 +65,8 @@ void init_settings(int argc, char *argv[]) {
 
     add_config_item(conf, 'F', "fps", CONFIG_INT, &settings.fps, DEFAULT_FPS);
     add_config_item(conf, 'P', "profile-fps", CONFIG_INT, &settings.profile_fps, DEFAULT_PROFILE_FPS);
-    add_config_item(conf, 'C', "detect-color", CONFIG_STR, &settings.detect_color, DEFAULT_DETECT_COLOR);
+    add_config_item(conf, 'B', "detect-color1", CONFIG_STR, &settings.detect_color1, DEFAULT_DETECT_COLOR1);
+    add_config_item(conf, 'C', "detect-color2", CONFIG_STR, &settings.detect_color2, DEFAULT_DETECT_COLOR2);
     add_config_item(conf, 'T', "detect-tolerance", CONFIG_INT, &settings.detect_tolerance, DEFAULT_DETECT_TOLERANCE);
     add_config_item(conf, 'W', "width", CONFIG_INT, &settings.width, DEFAULT_WIDTH);
     add_config_item(conf, 'H', "height", CONFIG_INT, &settings.height, DEFAULT_HEIGHT);
@@ -96,11 +97,17 @@ void init_settings(int argc, char *argv[]) {
         settings.v4l2_format = V4L2_PIX_FMT_Z16;
     }
 
-    // Parse detect color
-    if (settings.detect_color == NULL || strlen(settings.detect_color) != DETECT_COLOR_LENGTH) {
-        settings.detect_color = DEFAULT_DETECT_COLOR;
+    // Parse detect colors
+    if (settings.detect_color1 == NULL || strlen(settings.detect_color1) != DETECT_COLOR_LENGTH) {
+        settings.detect_color1 = DEFAULT_DETECT_COLOR1;
+        settings.detect_color_count = 1;
     }
-    
+    if (settings.detect_color2 != NULL) {
+        if (strlen(settings.detect_color2) == DETECT_COLOR_LENGTH) {
+            settings.detect_color_count = 2;
+        }
+    }
+
     // Parse video devices
     settings.video_device_count = 1;
 

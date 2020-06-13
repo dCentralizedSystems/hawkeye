@@ -13,7 +13,8 @@
 #define DEFAULT_FILE_ROOT "."
 #define DEFAULT_BASE_FILE_NAME "image"
 #define DEFAULT_PROFILE_FPS "0"
-#define DEFAULT_DETECT_COLOR "#5A6429"
+#define DEFAULT_DETECT_COLOR1 "#5A6429"
+#define DEFAULT_DETECT_COLOR2 "#809021"
 #define DEFAULT_DETECT_TOLERANCE "35"
 
 #define DETECT_COLOR_LENGTH (7)
@@ -34,7 +35,9 @@ struct settings {
 	int profile_fps;
 
 	// Color-detect parameters
-	char *detect_color;
+	char *detect_color1;
+	char *detect_color2;
+	int detect_color_count;
 	int detect_tolerance;
 };
 

@@ -39,6 +39,9 @@ typedef struct {
     uint32_t cent_x;
     uint32_t cent_y;
 
+    // color index
+    uint32_t color_index;
+
     // number of pixels
     uint32_t num_pixels;
 
@@ -59,7 +62,8 @@ void rgb_color_detection(uint8_t *p_pix,
                          uint32_t pixSize,
                          int width,
                          int height,
-                         detect_color_t *p_detect_color,
+                         int detect_color_count,
+                         detect_color_t *p_detect_colors,
                          float detect_tolerance,
                          bool b_write_image,
                          bool b_write_detection,
