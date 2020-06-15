@@ -182,7 +182,7 @@ bool parseDetectColor(const char *p_detect_color_string, uint32_t detect_color_l
     return true;
 }
 
-void grab_frame(struct frame_buffer *fb, output_file_t file_type, uint32_t num_detect_colors, detect_color_t *detect_colors, bool b_color_detect, float detect_tolerance) {
+void grab_frame(struct frame_buffer *fb, output_file_t file_type, uint32_t num_detect_colors, bool b_color_detect, float detect_tolerance) {
     uint8_t *buf = NULL;
     uint32_t buf_size = 0;
 
@@ -218,7 +218,7 @@ void grab_frame(struct frame_buffer *fb, output_file_t file_type, uint32_t num_d
 
                     // perform color detection, if enabled
                     if (b_color_detect) {
-                        rgb_color_detection(buf, frame_size, fb->vd->width, fb->vd->height, num_detect_colors, detect_colors, detect_tolerance, true, true, true, settings.file_root);
+                        rgb_color_detection(buf, frame_size, fb->vd->width, fb->vd->height, num_detect_colors, detect_tolerance, true, true, true, settings.file_root);
                     }
                 } else {
                     frame_size = compress_yuyv_to_jpeg(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width,
@@ -262,7 +262,6 @@ int main(int argc, char *argv[]) {
     static double fps_avg = 0.0f;
     double fps;
 
-    detect_color_t detect_colors[MAX_DETECT_COLORS];
     bool b_detect_color = false;
 
     bool calc_fps = false;
@@ -279,13 +278,24 @@ int main(int argc, char *argv[]) {
     }
 
     if (settings.detect_color_count >= 1) {
-        b_detect_color |= parseDetectColor(settings.detect_color1, strlen(settings.detect_color1), &detect_colors[0]);
-        b_detect_color &= calcNorms(&detect_colors[0]);
+        detect_color_t color1;
+        b_detect_color |= parseDetectColor(settings.detect_color1, strlen(settings.detect_color1), &color1);
+        b_detect_color &= calcNorms(&color1);
+
+        if (b_detect_color) {
+            setDetectColor(&color1, 0);
+        }
     }
 
     if (settings.detect_color_count == 2) {
-        b_detect_color &= parseDetectColor(settings.detect_color2, strlen(settings.detect_color2), &detect_colors[1]);
-        b_detect_color &= calcNorms(&detect_colors[1]);
+        detect_color_t color2;
+
+        b_detect_color &= parseDetectColor(settings.detect_color2, strlen(settings.detect_color2), &color2);
+        b_detect_color &= calcNorms(&color2);
+
+        if (b_detect_color) {
+            setDetectColor(&color2, 1);
+        }
     }
 
     float color_detect_tolerance = ((float)settings.detect_tolerance) / 100.0f;
@@ -323,7 +333,7 @@ int main(int argc, char *argv[]) {
         delta = gettime();
         for (i = 0; i < fbs->count; i++) {
             fb = &fbs->buffers[i];
-            grab_frame(fb, file_type, settings.detect_color_count, detect_colors, b_detect_color, color_detect_tolerance);
+            grab_frame(fb, file_type, settings.detect_color_count, b_detect_color, color_detect_tolerance);
         }
 
         if (calc_fps) {

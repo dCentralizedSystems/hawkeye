@@ -54,6 +54,9 @@ void colorDetectInit(void);
 // Takes a detect_color_t and calculates normalized and filter normalized values
 bool calcNorms(detect_color_t* p_detect_color);
 
+// Set detect color
+void setDetectColor(detect_color_t* p_detect_color, uint32_t index);
+
 // Checks if a pixel red-green-blue value matches the specified detect_color within tolerance (percent)
 bool rgb_match(detect_color_t *p_detect_color, uint8_t red, uint8_t green, uint8_t blue, float tolerance);
 
@@ -63,7 +66,6 @@ void rgb_color_detection(uint8_t *p_pix,
                          int width,
                          int height,
                          int detect_color_count,
-                         detect_color_t *p_detect_colors,
                          float detect_tolerance,
                          bool b_write_image,
                          bool b_write_detection,

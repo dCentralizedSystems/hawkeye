@@ -21,13 +21,14 @@
 #define GREEN_COLOR_TABLE_INDEX             (4)
 #define PURPLE_COLOR_TABLE_INDEX            (0)
 #define YELLOW_COLOR_TABLE_INDEX            (1)
+#define ORANGE_COLOR_TABLE_INDEX            (5)
 
 #define NO_DETECT_COLOR_TABLE_INDEX         (BLACK_COLOR_TABLE_INDEX)
-#define DRAW_BLOB_COLOR_TABLE_INDEX         (GREEN_COLOR_TABLE_INDEX)
 
 #define MAX_DETECT_COLORS                   (2)
 
 static uint32_t detect_color_table[MAX_DETECT_COLORS] = { PURPLE_COLOR_TABLE_INDEX, YELLOW_COLOR_TABLE_INDEX };
+static uint32_t draw_color_table[MAX_DETECT_COLORS] = { ORANGE_COLOR_TABLE_INDEX, GREEN_COLOR_TABLE_INDEX };
 static detect_color_t detect_colors[MAX_DETECT_COLORS] = { 0 };
 
 // internal type to hold detections and associated data
@@ -72,6 +73,11 @@ void colorDetectInit(void) {
     colorDetectColorTable[YELLOW_COLOR_TABLE_INDEX].green = 255;
     colorDetectColorTable[YELLOW_COLOR_TABLE_INDEX].red = 255;
     colorDetectColorTable[YELLOW_COLOR_TABLE_INDEX].reserved = 0;
+
+    colorDetectColorTable[ORANGE_COLOR_TABLE_INDEX].blue = 0;
+    colorDetectColorTable[ORANGE_COLOR_TABLE_INDEX].green = 165;
+    colorDetectColorTable[ORANGE_COLOR_TABLE_INDEX].red = 255;
+    colorDetectColorTable[ORANGE_COLOR_TABLE_INDEX].reserved = 0;
 }
 
 // the detections data structure
@@ -106,6 +112,12 @@ bool calcNorms(detect_color_t* p_detect_color) {
     return true;
 }
 
+void setDetectColor(detect_color_t* p_detect_color, uint32_t index) {
+    if (index < MAX_DETECT_COLORS) {
+        memcpy(&detect_colors[index], p_detect_color, sizeof(detect_color_t));
+    }
+}
+
 bool rgb_match(detect_color_t *p_detect_color, uint8_t red, uint8_t green, uint8_t blue, float tolerance) {
 
     /* Min / max ratio skew */
@@ -130,7 +142,8 @@ bool rgb_match(detect_color_t *p_detect_color, uint8_t red, uint8_t green, uint8
             }
         }
     }
-#define ENABLE_VALUE_BASED_MATCH
+
+//#define ENABLE_VALUE_BASED_MATCH
 #ifdef ENABLE_VALUE_BASED_MATCH
     float value_match_tolerance = 0.1f;
     float value_match_tolerance_min = 1.0f - value_match_tolerance;
@@ -163,17 +176,22 @@ static int find_containing_blob(int w_min, int w_max, int h_last, int image_widt
         blob_t *p_blob = &detections.blobs[i];
 
         if (p_blob->valid) {
-            int x_min = (p_blob->bb_x_min - allowed_column_miss < 0) ? 0 : p_blob->bb_x_min - allowed_column_miss;
-            int x_max = (p_blob->bb_x_max + allowed_column_miss > image_width) ? image_width : p_blob->bb_x_max + allowed_column_miss;
-            int y_max = (p_blob->bb_y_max + allowed_row_miss > image_height) ? image_height : p_blob->bb_y_max + allowed_row_miss;
+            // check that the detect color matches
+            if (detect_color_index == p_blob->color_index) {
+                int x_min = (p_blob->bb_x_min - allowed_column_miss < 0) ? 0 : p_blob->bb_x_min - allowed_column_miss;
+                int x_max = (p_blob->bb_x_max + allowed_column_miss > image_width) ? image_width : p_blob->bb_x_max +
+                                                                                                   allowed_column_miss;
+                int y_max = (p_blob->bb_y_max + allowed_row_miss > image_height) ? image_height : p_blob->bb_y_max +
+                                                                                                  allowed_row_miss;
 
-            // if this blob is in progress...i.e. the last line added to it
-            if (y_max >= h_last) {
-                //Iterate over segment
-                for (size_t j = w_min; j < w_max; ++j) {
-                    // If any point is within the x bounding-box of the blob, it belongs to that blob
-                    if (j >= x_min && j <= x_max) {
-                        return i;
+                // if this blob is in progress...i.e. the last line added to it
+                if (y_max >= h_last) {
+                    //Iterate over segment
+                    for (size_t j = w_min; j < w_max; ++j) {
+                        // If any point is within the x bounding-box of the blob, it belongs to that blob
+                        if (j >= x_min && j <= x_max) {
+                            return i;
+                        }
                     }
                 }
             }
@@ -189,6 +207,10 @@ static void append_blob(int w_min, int w_max, int h_last, int index, uint32_t de
         return;
     }
     blob_t *p_blob = &detections.blobs[index];
+
+    if (detect_color_index != p_blob->color_index) {
+        return;
+    }
 
     p_blob->bb_y_max = h_last;
 
@@ -228,12 +250,16 @@ static int new_blob(int w_min, int w_max, int h, uint32_t detect_color_index) {
     return -1;
 }
 
-static int find_largest_blob(void) {
+static int find_largest_blob(uint32_t detect_color_index) {
     int largest_pixel_size = 0;
     int largest_blob_index = -1;
 
     for (size_t i=0; i < COLOR_DETECT_NUM_BLOBS_MAX; ++i) {
         blob_t *p_blob = &detections.blobs[i];
+
+        if (detect_color_index != p_blob->color_index) {
+            continue;
+        }
 
         if (p_blob->valid && p_blob->complete) {
             if (p_blob->num_pixels > largest_pixel_size) {
@@ -247,6 +273,10 @@ static int find_largest_blob(void) {
 }
 
 static bool bb_overlap(blob_t* p_blob1, blob_t* p_blob2) {
+    if (p_blob1->color_index != p_blob2->color_index) {
+        return false;
+    }
+    
     if ((p_blob1->bb_x_min > p_blob2->bb_x_max) || (p_blob2->bb_x_min > p_blob1->bb_x_max)) {
         return false;
     }
@@ -278,22 +308,24 @@ static void bb_combine(blob_t* p_into, blob_t* p_from) {
     memset(p_from, 0, sizeof(blob_t));
 }
 
-static void combine_blobs_from_largest(void) {
-    int largest_blob_index = find_largest_blob();
+static void combine_blobs_from_largest(uint32_t detect_color_count) {
+    for (uint32_t color_index=0; color_index < detect_color_count; ++color_index) {
+        int largest_blob_index = find_largest_blob(color_index);
 
-    if (largest_blob_index >= 0) {
-        blob_t* p_largest = &detections.blobs[largest_blob_index];
+        if (largest_blob_index >= 0) {
+            blob_t *p_largest = &detections.blobs[largest_blob_index];
 
-        for (size_t i=0; i < COLOR_DETECT_NUM_BLOBS_MAX; ++i) {
-            // for every blob but the largest
-            if (i != largest_blob_index) {
-                blob_t *p_blob = &detections.blobs[i];
+            for (size_t i = 0; i < COLOR_DETECT_NUM_BLOBS_MAX; ++i) {
+                // for every blob but the largest
+                if (i != largest_blob_index) {
+                    blob_t *p_blob = &detections.blobs[i];
 
-                if (p_blob->valid && p_blob->complete) {
-                    // check overlap
-                    if (bb_overlap(p_largest, p_blob)) {
-                        // combine blobs into largest
-                        bb_combine(p_largest, p_blob);
+                    if (p_blob->valid && p_blob->complete) {
+                        // check overlap
+                        if (bb_overlap(p_largest, p_blob)) {
+                            // combine blobs into largest
+                            bb_combine(p_largest, p_blob);
+                        }
                     }
                 }
             }
@@ -348,7 +380,7 @@ static int detect_blobs(uint8_t* p_image, int width, int height, int detect_colo
     int line_min = 0;
     int line_max = 0;
     bool b_in_line = false;
-    uint32_t detect_color_index = 0;
+    uint32_t line_color_index = 0;
 
     if (p_curr == NULL || width <= 0 || height <= 0) {
         return -1;
@@ -360,36 +392,46 @@ static int detect_blobs(uint8_t* p_image, int width, int height, int detect_colo
     // Iterate over input image
     for (size_t h=0; h < height; ++h) {
         for (size_t w=0; w < width; ++w) {
-            // look for pixel value
-            detect_color_index = *p_curr;
-            if (*p_curr++ != NO_DETECT_COLOR_TABLE_INDEX) {
-                if (!b_in_line) {
-                    b_in_line = true;
-                    line_min = w;
-                }
+            uint8_t curr_color_index = *p_curr++;
 
+            if (curr_color_index == NO_DETECT_COLOR_TABLE_INDEX) {
                 if (b_in_line) {
-                    line_max = w;
+                    b_in_line = false;
+                    new_or_append_blob(line_min, line_max, h, width, height, line_color_index);
                 }
             } else {
                 if (b_in_line) {
-                    b_in_line = false;
-                    new_or_append_blob(line_min, line_max, h, width, height, detect_color_index);
+                    if (curr_color_index == line_color_index) {
+                        line_max = w;
+                    } else {
+                        // not background, but not current line color, end current line and start new line
+                        new_or_append_blob(line_min, line_max, h, width, height, line_color_index);
+
+                        // start new line
+                        b_in_line = true;
+                        line_min = w;
+                        line_max = w;
+                        line_color_index = curr_color_index;
+                    }
+                } else {
+                    // start new line
+                    b_in_line = true;
+                    line_min = w;
+                    line_max = w;
+                    line_color_index = curr_color_index;
                 }
             }
         }
-        // check for in-line at end of row
         if (b_in_line) {
             b_in_line = false;
-            new_or_append_blob(line_min, line_max, h, width, height, detect_color_index);
+            new_or_append_blob(line_min, line_max, h, width, height, line_color_index);
         }
-
         cull_blobs(h, width, height);
     }
     // No b_in_line check needed here, since the end of the image is also a row end
 
     // largest blob subsumes all overlapping blobs
-    combine_blobs_from_largest();
+    combine_blobs_from_largest(detect_color_count);
 
     return 0;
 }
@@ -400,26 +442,30 @@ void draw_blob(uint8_t* p_pix, int width, int height, blob_t* p_blob) {
     int line_width = p_blob->bb_x_max - p_blob->bb_x_min;
     int line_height = p_blob->bb_y_max - p_blob->bb_y_min;
 
+    uint8_t draw_color = draw_color_table[p_blob->color_index % 2];
+
     // horizontal
     for (size_t i=0; i < line_width; ++i) {
-        p_pix[top_line_start+i] = p_blob->color_index;
-        p_pix[bottom_line_start+i] = p_blob->color_index;
+        p_pix[top_line_start+i] = draw_color;
+        p_pix[bottom_line_start+i] = draw_color;
     }
 
     // vertical
     for (size_t i=0; i < line_height; ++i) {
-        p_pix[top_line_start+(i*width)] = p_blob->color_index;
-        p_pix[top_line_start+(i*width)+line_width] = p_blob->color_index;
+        p_pix[top_line_start+(i*width)] = draw_color;
+        p_pix[top_line_start+(i*width)+line_width] = draw_color;
     }
 }
 
-void draw_blobs(uint8_t *p_pix, int width, int height, uint8_t draw_color, bool b_largest_only) {
+void draw_blobs(uint8_t *p_pix, int width, int height, bool b_largest_only, uint32_t detect_color_count) {
     // Draw bounding box for each blob
     if (b_largest_only) {
-        int largest_blob_index = find_largest_blob();
+        for (uint32_t i=0; i < detect_color_count; ++i) {
+            int largest_blob_index = find_largest_blob(i);
 
-        if (largest_blob_index >= 0) {
-            draw_blob(p_pix, width, height, &detections.blobs[largest_blob_index]);
+            if (largest_blob_index >= 0) {
+                draw_blob(p_pix, width, height, &detections.blobs[largest_blob_index]);
+            }
         }
     } else {
         for (size_t i = 0; i < COLOR_DETECT_NUM_BLOBS_MAX; ++i) {
@@ -483,8 +529,8 @@ bool write_blob_data_to_image(uint8_t* p_image, uint32_t image_size, int stride,
         if (p_blob->valid && p_blob->complete && p_blob->num_pixels != 0) {
             char blob_string[128] = { 0 }; // 10 characters per integer plus 6 commas plus null terminator
 
-            int blob_string_len = snprintf(blob_string, 128, ",%d,%d,%d,%d,%d,%d", blob_index, p_blob->bb_x_min, p_blob->bb_x_max,
-                                           p_blob->bb_y_min, p_blob->bb_y_max, p_blob->num_pixels);
+            int blob_string_len = snprintf(blob_string, 128, ",%d,%d,%d,%d,%d,%d,%d", blob_index, p_blob->bb_x_min, p_blob->bb_x_max,
+                                           p_blob->bb_y_min, p_blob->bb_y_max, p_blob->color_index, p_blob->num_pixels);
 
             // ensure room to append in p_line_buf
             if (blob_string_remaining < blob_string_len) {
@@ -547,7 +593,6 @@ void rgb_color_detection(uint8_t *p_pix,
                         int width,
                         int height,
                         int detect_color_count,
-                        detect_color_t *p_detect_colors,
                         float detect_tolerance,
                         bool b_write_image,
                         bool b_write_detection,
@@ -574,13 +619,19 @@ void rgb_color_detection(uint8_t *p_pix,
             uint8_t green = *p_input++;
             uint8_t red = *p_input++;
 
+            bool b_set = false;
+
             for (uint32_t dci=0; dci < detect_color_count; ++dci) {
                 detect_color_t* p_detect_color = &detect_colors[dci];
                 if (rgb_match(p_detect_color, red, green, blue, detect_tolerance)) {
                     *p_detect_image++ = detect_color_table[dci];
-                } else {
-                    *p_detect_image++ = NO_DETECT_COLOR_TABLE_INDEX;
+                    b_set = true;
+                    break;
                 }
+            }
+
+            if (!b_set) {
+                *p_detect_image++ = NO_DETECT_COLOR_TABLE_INDEX;
             }
         }
     }
@@ -588,7 +639,7 @@ void rgb_color_detection(uint8_t *p_pix,
     detect_blobs(p_detect_image_start, width, height, detect_color_count);
 
     if (b_write_image) {
-        draw_blobs(p_detect_image_start, width, height, DRAW_BLOB_COLOR_TABLE_INDEX, false);
+        draw_blobs(p_detect_image_start, width, height, false, detect_color_count);
     }
 
     // blob detection image write
@@ -597,11 +648,13 @@ void rgb_color_detection(uint8_t *p_pix,
             write_blob_data_to_image(p_pix, pixSize, width * 3, height);
         } else {
             // write the largest blob
-            int index = find_largest_blob();
-            if (index >= 0) {
-                blob_t *p_largest = &detections.blobs[index];
-                if (p_largest) {
-                    write_single_blob_data_to_image(p_largest, p_pix, pixSize, width * 3, height);
+            for (uint32_t i=0; i < detect_color_count; ++i) {
+                int index = find_largest_blob(i);
+                if (index >= 0) {
+                    blob_t *p_largest = &detections.blobs[index];
+                    if (p_largest) {
+                        write_single_blob_data_to_image(p_largest, p_pix, pixSize, width * 3, height);
+                    }
                 }
             }
         }
