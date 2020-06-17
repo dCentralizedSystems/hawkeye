@@ -307,6 +307,12 @@ int main(int argc, char *argv[]) {
         color_detect_tolerance = 0.90f;
     }
 
+    if (settings.detect_tolerance == 0) {
+        // this disabled color detection
+        b_detect_color = false;
+        color_detect_tolerance = 0.0f;
+    }
+
     printf("%s: detect tolerance %f%% from %d\n", __func__, color_detect_tolerance, settings.detect_tolerance);
 
     // proflie fps
