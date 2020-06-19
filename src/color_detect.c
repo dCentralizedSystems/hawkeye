@@ -120,6 +120,9 @@ void setDetectColor(detect_color_t* p_detect_color, uint32_t index) {
     }
 }
 
+// Detects if the pixel { red, green, blue } matches (within tolerance) the supplied detect color.  This is accomplished using
+// The match is performed using green-red ratio, green-blue ratio, and red-blue ratio.  This makes the algorithm somewhat
+// tolerant to varying image intensities. It works best when the white-balance of the illumination is fixed.
 bool rgb_match(detect_color_t *p_detect_color, uint8_t red, uint8_t green, uint8_t blue, float tolerance) {
 
     /* Min / max ratio skew */
@@ -145,20 +148,6 @@ bool rgb_match(detect_color_t *p_detect_color, uint8_t red, uint8_t green, uint8
         }
     }
 
-//#define ENABLE_VALUE_BASED_MATCH
-#ifdef ENABLE_VALUE_BASED_MATCH
-    float value_match_tolerance = 0.1f;
-    float value_match_tolerance_min = 1.0f - value_match_tolerance;
-    float value_match_tolerance_max = 1.0f + value_match_tolerance;
-
-    if (in_pix_color.red > p_detect_color->red * value_match_tolerance_min && in_pix_color.red < p_detect_color->red * value_match_tolerance_max) {
-        if (in_pix_color.green > p_detect_color->green * value_match_tolerance_min && in_pix_color.green < p_detect_color->green * value_match_tolerance_max) {
-            if (in_pix_color.blue > p_detect_color->blue * value_match_tolerance_min && in_pix_color.blue < p_detect_color->blue * value_match_tolerance_max) {
-                return true;
-            }
-        }
-    }
-#endif
     return false;
 }
 
@@ -629,7 +618,7 @@ const char * rgb_color_detection(uint8_t *p_pix, int width, int height, detect_p
     if (p_detect_image_start == NULL) {
         p_detect_image_start = (uint8_t *) malloc(detect_image_size);
     }
-    
+
     uint8_t *p_detect_image = p_detect_image_start;
 
     // iterate over input image buffer and write 0 if specified color not detected, 1 if detected

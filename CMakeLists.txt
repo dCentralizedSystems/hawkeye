@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.13)
 project(hawkeye C)
 
 set(CMAKE_C_STANDARD 11)
-set(CMAKE_C_FLAGS "-O0 -Wall -Wl,-wrap,malloc,-wrap,realloc,-wrap,calloc,-wrap,strdup")
+set(CMAKE_C_FLAGS "-O3 -Wall -Wl,-wrap,malloc,-wrap,realloc,-wrap,calloc,-wrap,strdup")
 
 FIND_LIBRARY(jpeg REQUIRED)
 FIND_LIBRARY(v4l2 REQUIRED)

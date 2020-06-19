@@ -52,28 +52,6 @@ void init_signals(){
     signal(SIGPIPE, SIG_IGN);
 }
 
-// Not used currently, but may use later to gather statistics
-/*
-double get_real_fps(struct video_device *vd, unsigned int rounds) {
-    struct timeval start, end;
-    unsigned int i;
-    double total = 0;
-
-    // Do two grabs first since the first time we run initialization
-    capture_frame(vd);
-    capture_frame(vd);
-
-    for (i = 0; i < rounds; i++) {
-        gettimeofday(&start, NULL);
-        capture_frame(vd);
-        gettimeofday(&end, NULL);
-        total += (double) (end.tv_sec - start.tv_sec) + ((double) (end.tv_usec - start.tv_usec)) / 10000000;
-    }
-
-    return rounds/total;
-}
-*/
-
 struct frame_buffers *init_frame_buffers(size_t device_count, char *device_name) {
     int i;
     struct frame_buffer *fb;
