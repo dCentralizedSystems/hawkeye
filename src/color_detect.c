@@ -624,7 +624,12 @@ const char * rgb_color_detection(uint8_t *p_pix, int width, int height, detect_p
 
     size_t detect_image_size = width * height;
 
-    uint8_t *p_detect_image_start = (uint8_t *) malloc(detect_image_size);
+    static uint8_t *p_detect_image_start = NULL;
+
+    if (p_detect_image_start == NULL) {
+        p_detect_image_start = (uint8_t *) malloc(detect_image_size);
+    }
+    
     uint8_t *p_detect_image = p_detect_image_start;
 
     // iterate over input image buffer and write 0 if specified color not detected, 1 if detected
@@ -685,8 +690,8 @@ const char * rgb_color_detection(uint8_t *p_pix, int width, int height, detect_p
         }
     }
 
-    free(p_detect_image_start);
-    p_detect_image_start = NULL;
+    //free(p_detect_image_start);
+    //p_detect_image_start = NULL;
 
     return get_blob_data_string();
 }
