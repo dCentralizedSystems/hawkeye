@@ -21,13 +21,6 @@
 
 static int is_running = 1;
 
-typedef enum {
-    OUTPUT_FILE_TYPE_NONE,
-    OUTPUT_FILE_TYPE_JPG,
-    OUTPUT_FILE_TYPE_BMP
-} output_file_t;
-
-
 const char *p_color_detect_file_name = "detect_color_image.bmp~";
 const char *p_color_detect_file_rename = "detect_color_image.bmp";
 
@@ -119,19 +112,14 @@ void destroy_frame_buffers(struct frame_buffers *fbs) {
     free(fbs);
 }
 
-void write_frame(struct frame_buffer *fb, void *data, size_t data_len, output_file_t file_type) {
+void write_frame(struct frame_buffer *fb, void *data, size_t data_len) {
 
     static char out_file_path[128] = {0};
     static char temp_out_file_path[128] = {0};
 
     if (out_file_path[0] == 0 && temp_out_file_path[0] == 0) {
-        if (file_type == OUTPUT_FILE_TYPE_BMP) {
-            sprintf(temp_out_file_path, "%s/%s.bmp~", settings.file_root, settings.base_file_name);
-            sprintf(out_file_path, "%s/%s.bmp", settings.file_root, settings.base_file_name);
-        } else {
-            sprintf(temp_out_file_path, "%s/%s.jpg~", settings.file_root, settings.base_file_name);
-            sprintf(out_file_path, "%s/%s.jpg", settings.file_root, settings.base_file_name);
-        }
+        sprintf(temp_out_file_path, "%s/%s.jpg~", settings.file_root, settings.base_file_name);
+        sprintf(out_file_path, "%s/%s.jpg", settings.file_root, settings.base_file_name);
     }
 
     /* Only write files for specific formats */
@@ -147,12 +135,7 @@ void write_frame(struct frame_buffer *fb, void *data, size_t data_len, output_fi
     	}
 
     	// write the correct type of file
-    	if (file_type == OUTPUT_FILE_TYPE_BMP) {
-            size_t bytesPerPixel = (fb->vd->format_in == V4L2_PIX_FMT_Z16) ? 1 : 3;
-            bmWriteBitmap(p_file, fb->vd->width, fb->vd->height, bytesPerPixel, data, data_len);
-    	} else {
-            fwrite(data, data_len, 1, p_file);
-        }
+    	fwrite(data, data_len, 1, p_file);
 
     	fflush(p_file);
     	fclose(p_file);
@@ -182,23 +165,12 @@ bool parseDetectColor(const char *p_detect_color_string, uint32_t detect_color_l
     return true;
 }
 
-void grab_frame(struct frame_buffer *fb, output_file_t file_type, uint32_t num_detect_colors, bool b_color_detect, float detect_tolerance) {
+void grab_frame(struct frame_buffer *fb, bool b_color_detect, detect_params_t *p_detect_params) {
     uint8_t *buf = NULL;
     uint32_t buf_size = 0;
 
-    if (file_type == OUTPUT_FILE_TYPE_BMP) {
-        uint32_t buf_size = fb->vd->width * fb->vd->height;
-        if (fb->vd->format_in == V4L2_PIX_FMT_YUYV) {
-            buf_size *= 3;
-        } else if (fb->vd->format_in == V4L2_PIX_FMT_Z16) {
-            buf_size *= 1;
-        }
-        buf = malloc(buf_size);
-
-    } else {
-        buf = (uint8_t *) malloc(fb->vd->framebuffer_size);
-        buf_size = fb->vd->framebuffer_size;
-    }
+    buf = (uint8_t *) malloc(fb->vd->framebuffer_size);
+    buf_size = fb->vd->framebuffer_size;
 
     if (!buf) {
         perror("Couldn't allocate output frame data buffer");
@@ -212,34 +184,24 @@ void grab_frame(struct frame_buffer *fb, output_file_t file_type, uint32_t num_d
         /* Process by input format type (output type is always JPEG) */
         switch (fb->vd->format_in) {
             case V4L2_PIX_FMT_YUYV:
-                if (file_type == OUTPUT_FILE_TYPE_BMP) {
-                    frame_size = compress_yuyv_to_bmp(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width,
-                                                      fb->vd->height);
-
-                    // perform color detection, if enabled
-                    if (b_color_detect) {
-                        rgb_color_detection(buf, frame_size, fb->vd->width, fb->vd->height, num_detect_colors, detect_tolerance, false, true, true, settings.file_root);
-                    }
+                if (b_color_detect) {
+                    frame_size = compress_yuyv_to_jpeg(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width,
+                                                       fb->vd->height, fb->vd->jpeg_quality, p_detect_params);
                 } else {
                     frame_size = compress_yuyv_to_jpeg(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width,
-                                                       fb->vd->height, fb->vd->jpeg_quality);
+                                                       fb->vd->height, fb->vd->jpeg_quality, NULL);
                 }
                 break;
             case V4L2_PIX_FMT_Z16:
-                if (file_type == OUTPUT_FILE_TYPE_BMP) {
-                    frame_size = compress_z16_to_bmp(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width,
-                                                     fb->vd->height, settings.mm_scale);
-                } else {
-                    frame_size = compress_z16_to_jpeg(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width,
+                frame_size = compress_z16_to_jpeg(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width,
                                                       fb->vd->height, fb->vd->jpeg_quality, settings.mm_scale);
-                }
                 break;
             default:
                 panic("Video device is using unknown format.");
                 break;
         }
 
-        write_frame(fb, buf, frame_size, file_type);
+        write_frame(fb, buf, frame_size);
     }
 
     free(buf);
@@ -254,9 +216,6 @@ int main(int argc, char *argv[]) {
     struct frame_buffers *fbs;
     struct frame_buffer *fb;
     struct timespec ts;
-
-    // output file type
-    output_file_t file_type = OUTPUT_FILE_TYPE_NONE;
 
     double delta;
     static double fps_avg = 0.0f;
@@ -320,13 +279,6 @@ int main(int argc, char *argv[]) {
         calc_fps = true;
     }
 
-    // determine output file format
-    if (strcmp(settings.file_format, "bmp") == 0) {
-        file_type = OUTPUT_FILE_TYPE_BMP;
-    } else {
-        file_type = OUTPUT_FILE_TYPE_JPG;
-    }
-
     if (settings.run_in_background) {
         daemonize();
     }
@@ -335,11 +287,23 @@ int main(int argc, char *argv[]) {
 
     fbs = init_frame_buffers(settings.video_device_count, settings.video_device_file);
 
+    // set up color-detection parameters
+    detect_params_t detect_params;
+
+    build_detect_params(&detect_params,
+                             settings.detect_color_count,
+                             color_detect_tolerance,
+                             settings.min_detect_conf,
+                             settings.write_detect_image,
+                             settings.write_detect_image,
+                             settings.file_root,
+                             "color-detect-image.bmp") ;
+
     while (is_running) {
         delta = gettime();
         for (i = 0; i < fbs->count; i++) {
             fb = &fbs->buffers[i];
-            grab_frame(fb, file_type, settings.detect_color_count, b_detect_color, color_detect_tolerance);
+            grab_frame(fb, b_detect_color, &detect_params);
         }
 
         if (calc_fps) {

@@ -10,6 +10,7 @@
 // Maximum number of blobs detected
 #define COLOR_DETECT_NUM_BLOBS_MAX      (5)
 
+#define DEF BLOB_STRING_MAX_LENGTH
 // Color detection structure
 typedef struct {
     float red;
@@ -49,6 +50,17 @@ typedef struct {
     bool complete;
 } blob_t;
 
+
+typedef struct {
+    int color_count;
+    detect_color_t* p_detect_colors;
+    float tolerance;
+    int min_detect_conf;
+    bool b_write_image;
+    char detection_image_file_name[256];
+    bool b_write_detection;
+} detect_params_t;
+
 void colorDetectInit(void);
 
 // Takes a detect_color_t and calculates normalized and filter normalized values
@@ -60,17 +72,17 @@ void setDetectColor(detect_color_t* p_detect_color, uint32_t index);
 // Checks if a pixel red-green-blue value matches the specified detect_color within tolerance (percent)
 bool rgb_match(detect_color_t *p_detect_color, uint8_t red, uint8_t green, uint8_t blue, float tolerance);
 
-// assumes pixels packed RGBRGBRGB...3 bytes per pixel
-void rgb_color_detection(uint8_t *p_pix,
-                         uint32_t pixSize,
-                         int width,
-                         int height,
-                         int detect_color_count,
+void build_detect_params(detect_params_t *p_params,
+                         int color_count,
                          float detect_tolerance,
+                         int min_detect_conf,
                          bool b_write_image,
                          bool b_write_detection,
-                         bool b_write_all_detections,
-                         char* color_detect_image_path);
+                         const char* color_detect_image_path,
+                         const char* color_detect_image_name);
+
+// assumes pixels packed RGBRGBRGB...3 bytes per pixel
+const char * rgb_color_detection(uint8_t *p_pix, int width, int height, detect_params_t *p_detect_params);
 
 // Retrieve blob by index from detection results
 blob_t* get_blob(size_t index);

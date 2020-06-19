@@ -13,8 +13,8 @@
 #define MIN_HORIZ_PIXELS_FOR_FEATURE_LINE   (3)
 #define MIN_BLOB_PIXELS                     (50)
 
-#define BLOB_ALLOWED_ROW_MISS_PERCENT       (0.15f)
-#define BLOB_ALLOWED_COLUMN_MISS_PERCENT    (0.1f)
+#define BLOB_ALLOWED_ROW_MISS_PERCENT       (0.05f)
+#define BLOB_ALLOWED_COLUMN_MISS_PERCENT    (0.05f)
 
 #define WHITE_COLOR_TABLE_INDEX             (3)
 #define BLACK_COLOR_TABLE_INDEX             (2)
@@ -26,6 +26,8 @@
 #define NO_DETECT_COLOR_TABLE_INDEX         (BLACK_COLOR_TABLE_INDEX)
 
 #define MAX_DETECT_COLORS                   (2)
+
+#define BLOB_STRING_MAX_LENGTH              (1024)
 
 static uint32_t detect_color_table[MAX_DETECT_COLORS] = { PURPLE_COLOR_TABLE_INDEX, YELLOW_COLOR_TABLE_INDEX };
 static uint32_t draw_color_table[MAX_DETECT_COLORS] = { ORANGE_COLOR_TABLE_INDEX, GREEN_COLOR_TABLE_INDEX };
@@ -333,7 +335,23 @@ static void combine_blobs_from_largest(uint32_t detect_color_count) {
     }
 }
 
-static void cull_blobs(int curr_height, int image_width, int image_height) {
+static bool blob_area_over_threshold(blob_t* p_blob, int image_width, int image_height, int min_detect_conf) {
+
+    // calculate blob bounding-box num pixels
+    if (p_blob == NULL) {
+        return false;
+    }
+
+    // minimum allowed number of pixels for a blob is min_detect_conf 10,000ths of the total number of image pixels
+    int min_blob_pixels = ((float)min_detect_conf / 10000.0f) * image_width * image_height;
+
+    int blob_bb_area = (p_blob->bb_x_max - p_blob->bb_x_min) * (p_blob->bb_y_max - p_blob->bb_y_min);
+
+    return (blob_bb_area > min_blob_pixels);
+}
+
+static void cull_blobs(int curr_height, int image_width, int image_height, int min_detect_conf) {
+
     for (size_t i=0; i < COLOR_DETECT_NUM_BLOBS_MAX; ++i) {
         blob_t* p_curr = &detections.blobs[i];
 
@@ -347,7 +365,7 @@ static void cull_blobs(int curr_height, int image_width, int image_height) {
         int last_allowed_row = p_curr->bb_y_max  + (int)allowed_row_miss > image_height ? image_height :  (int)(p_curr->bb_y_max  + (int)allowed_row_miss);
 
         if (last_allowed_row < curr_height) {
-            if (p_curr->num_pixels < MIN_BLOB_PIXELS || !p_curr->complete) {
+            if (!blob_area_over_threshold(p_curr, image_width, image_height, min_detect_conf) || p_curr->num_pixels < MIN_BLOB_PIXELS || !p_curr->complete) {
                 memset((void*)&detections.blobs[i], 0, sizeof(blob_t));
                 detections.num_blobs--;
             }
@@ -374,7 +392,7 @@ static void new_or_append_blob(int line_min, int line_max, int h, int image_widt
     }
 }
 
-static int detect_blobs(uint8_t* p_image, int width, int height, int detect_color_count) {
+static int detect_blobs(uint8_t* p_image, int width, int height, int detect_color_count, int min_detect_conf) {
 
     uint8_t *p_curr = p_image;
     int line_min = 0;
@@ -426,7 +444,7 @@ static int detect_blobs(uint8_t* p_image, int width, int height, int detect_colo
             b_in_line = false;
             new_or_append_blob(line_min, line_max, h, width, height, line_color_index);
         }
-        cull_blobs(h, width, height);
+        cull_blobs(h, width, height, min_detect_conf);
     }
     // No b_in_line check needed here, since the end of the image is also a row end
 
@@ -490,32 +508,23 @@ static int num_complete_blobs(void) {
     return num_blobs;
 }
 
-bool write_blob_data_to_image(uint8_t* p_image, uint32_t image_size, int stride, int height) {
-    bool retVal = false;
+const char* get_blob_data_string() {
+    static char blobs_string[BLOB_STRING_MAX_LENGTH];
 
-    if (!p_image || image_size != stride * height || stride <= 0 || height <= 0) {
-        return false;
-    }
+    memset(blobs_string, 0, BLOB_STRING_MAX_LENGTH);
 
     // only write complete blobs, check if there are any to write
     int num_blobs = num_complete_blobs();
 
     if (num_blobs == 0) {
-        return true;
-    }
-
-    // Allocate a buffer equal to the size of the first row
-    char *p_line_buf = (char*)calloc(stride , 1);
-
-    if (!p_line_buf) {
-        return false;
+        return NULL;
     }
 
     // keep track of remaining space in first image line
-    int blob_string_remaining = stride;
+    int blob_string_remaining = BLOB_STRING_MAX_LENGTH;
 
     // write num blobs first
-    int num_blob_string_len = snprintf(p_line_buf, blob_string_remaining, "%d", num_blobs);
+    int num_blob_string_len = snprintf(blobs_string, blob_string_remaining, "%d", num_blobs);
 
     blob_string_remaining -= num_blob_string_len;
 
@@ -538,7 +547,7 @@ bool write_blob_data_to_image(uint8_t* p_image, uint32_t image_size, int stride,
             }
 
             // write blob string
-            strncat(p_line_buf, blob_string, blob_string_len);
+            strncat(blobs_string, blob_string, blob_string_len);
 
             blob_string_remaining -= blob_string_len;
             blob_index++;
@@ -547,14 +556,10 @@ bool write_blob_data_to_image(uint8_t* p_image, uint32_t image_size, int stride,
 
     if (blob_string_remaining > 0) {
         // append a line-feed
-        strcat(p_line_buf, "\n");
+        strcat(blobs_string, "\n");
     }
 
-    // replace the first line in the image
-    memcpy(p_image, p_line_buf, stride);
-
-    free(p_line_buf);
-    return retVal;
+    return blobs_string;
 }
 
 bool write_single_blob_data_to_image(blob_t* p_blob, uint8_t* p_image, uint32_t image_size, int stride, int height) {
@@ -587,24 +592,37 @@ bool write_single_blob_data_to_image(blob_t* p_blob, uint8_t* p_image, uint32_t 
     return retVal;
 }
 
-// assumes pixels packed RGBRGBRGB...3 bytes per pixel
-void rgb_color_detection(uint8_t *p_pix,
-                        uint32_t pixSize,
-                        int width,
-                        int height,
-                        int detect_color_count,
+void build_detect_params(detect_params_t *p_params,
+                        int color_count,
                         float detect_tolerance,
+                        int min_detect_conf,
                         bool b_write_image,
                         bool b_write_detection,
-                        bool b_write_all_detections,
-                        char* color_detect_image_path) {
-
-    size_t detect_image_size = width * height;
-
-    if (pixSize != width * height * 3) {
-        printf("%s: invalid pixel buffer size (%u != %d * %d)\n", __func__, pixSize, width, height);
+                        const char* color_detect_image_path,
+                        const char* color_detect_image_name) {
+    if (!p_params) {
         return;
     }
+
+    p_params->color_count = color_count;
+    p_params->p_detect_colors = &detect_colors[0];
+    p_params->tolerance = detect_tolerance;
+    p_params->min_detect_conf = min_detect_conf;
+    p_params->b_write_image = b_write_image;
+    p_params->b_write_detection = b_write_detection;
+    memset(p_params->detection_image_file_name, 0, 256);
+    snprintf(p_params->detection_image_file_name, 256, "%s/%s", color_detect_image_path, color_detect_image_name);
+}
+
+
+// assumes pixels packed RGBRGBRGB...3 bytes per pixel
+const char * rgb_color_detection(uint8_t *p_pix, int width, int height, detect_params_t *p_detect_params) {
+
+    if (!p_detect_params) {
+        return NULL;
+    }
+
+    size_t detect_image_size = width * height;
 
     uint8_t *p_detect_image_start = (uint8_t *) malloc(detect_image_size);
     uint8_t *p_detect_image = p_detect_image_start;
@@ -615,15 +633,15 @@ void rgb_color_detection(uint8_t *p_pix,
     for (uint32_t h = 0; h < height; ++h) {
         for (uint32_t w = 0; w < width; ++w) {
             // decode one pixel
-            uint8_t blue = *p_input++;
-            uint8_t green = *p_input++;
             uint8_t red = *p_input++;
+            uint8_t green = *p_input++;
+            uint8_t blue = *p_input++;
 
             bool b_set = false;
 
-            for (uint32_t dci=0; dci < detect_color_count; ++dci) {
-                detect_color_t* p_detect_color = &detect_colors[dci];
-                if (rgb_match(p_detect_color, red, green, blue, detect_tolerance)) {
+            for (uint32_t dci=0; dci < p_detect_params->color_count; ++dci) {
+                detect_color_t* p_detect_color = &p_detect_params->p_detect_colors[dci];
+                if (rgb_match(p_detect_color, red, green, blue, p_detect_params->tolerance)) {
                     *p_detect_image++ = detect_color_table[dci];
                     b_set = true;
                     break;
@@ -636,57 +654,39 @@ void rgb_color_detection(uint8_t *p_pix,
         }
     }
 
-    detect_blobs(p_detect_image_start, width, height, detect_color_count);
+    detect_blobs(p_detect_image_start, width, height, p_detect_params->color_count, p_detect_params->min_detect_conf);
 
-    if (b_write_image) {
-        draw_blobs(p_detect_image_start, width, height, false, detect_color_count);
+    if (p_detect_params->b_write_image) {
+        draw_blobs(p_detect_image_start, width, height, false, p_detect_params->color_count);
     }
 
-    // blob detection image write
-    if (b_write_detection) {
-        if (b_write_all_detections) {
-            write_blob_data_to_image(p_pix, pixSize, width * 3, height);
-        } else {
-            // write the largest blob
-            for (uint32_t i=0; i < detect_color_count; ++i) {
-                int index = find_largest_blob(i);
-                if (index >= 0) {
-                    blob_t *p_largest = &detections.blobs[index];
-                    if (p_largest) {
-                        write_single_blob_data_to_image(p_largest, p_pix, pixSize, width * 3, height);
-                    }
-                }
-            }
-        }
-    }
-
-    if (b_write_image) {
-        static char color_detect_file_temp_name[128] = { 0 };
-        static char color_detect_file_name[128] = { 0 };
+    if (p_detect_params->b_write_image) {
+        static char color_detect_file_temp_name[512] = { 0 };
+        static char color_detect_file_name[512] = { 0 };
 
         if (color_detect_file_temp_name[0] == 0 || color_detect_file_name[0] == 0) {
-            sprintf(color_detect_file_temp_name, "%s/%s.bmp~", color_detect_image_path, "color-detect-image");
-            sprintf(color_detect_file_name, "%s/%s.bmp", color_detect_image_path, "color-detect-image");
+            snprintf(color_detect_file_temp_name, 257, "%s~", p_detect_params->detection_image_file_name);
+            snprintf(color_detect_file_name, 257,"%s", p_detect_params->detection_image_file_name);
         }
 
-        FILE *p_file = fopen(color_detect_file_name, "w+");
+        FILE *p_file = fopen(color_detect_file_temp_name, "w+");
 
-        if (p_file == NULL) {
-            perror("Can't write output image file.");
-            free(p_detect_image_start);
-            return;
+        if (p_file != NULL) {
+
+            // write image
+            bmWriteBitmapWithColorTable(p_file, width, height, colorDetectColorTable, sizeof(colorDetectColorTable),
+                                        p_detect_image_start, detect_image_size);
+
+            fflush(p_file);
+            fclose(p_file);
+
+            /* Now that write is complete, rename the file */
+            rename(color_detect_file_temp_name, color_detect_file_name);
         }
-
-        // write image
-        bmWriteBitmapWithColorTable(p_file, width, height, colorDetectColorTable, sizeof(colorDetectColorTable), p_detect_image_start, detect_image_size);
-
-        fflush(p_file);
-        fclose(p_file);
-
-        /* Now that write is complete, rename the file */
-        rename(color_detect_file_temp_name, color_detect_file_name);
     }
 
     free(p_detect_image_start);
     p_detect_image_start = NULL;
+
+    return get_blob_data_string();
 }

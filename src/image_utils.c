@@ -32,6 +32,7 @@
 #include "v4l2uvc.h"
 
 #include "logger.h"
+#include "color_detect.h"
 
 #define OUTPUT_BUF_SIZE  4096
 
@@ -134,7 +135,9 @@ Input Value.: video structure from v4l2uvc.c/h, destination buffer and buffersiz
               the buffer must be large enough, no error/size checking is done!
 Return Value: the buffer will contain the compressed data
 ******************************************************************************/
-size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char* src, size_t src_size, unsigned int width, unsigned int height, int quality) {
+size_t
+compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char *src, size_t src_size, unsigned int width,
+                      unsigned int height, int quality, detect_params_t *p_detect_params) {
     struct jpeg_compress_struct cinfo;
     struct jpeg_error_mgr jerr;
     JSAMPROW row_pointer[height];
@@ -193,60 +196,25 @@ size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char*
         }
     }
 
+    // perform color detection, if requested
+    if (p_detect_params != NULL) {
+        static char blob_string[1024];
+        memset(blob_string, 0, 1024);
+
+        const char* p_rgb_blob_string = rgb_color_detection(frame_buffer, width, height, p_detect_params);
+        /* Detect blobs */
+        if (p_rgb_blob_string != NULL) {
+            /* Write blob data string into JPEG_COM section in image */
+            jpeg_write_marker(&cinfo, JPEG_COM, (unsigned char *) p_rgb_blob_string, strlen(p_rgb_blob_string));
+        }
+    }
+
     jpeg_write_scanlines(&cinfo, row_pointer, height);
 
     jpeg_finish_compress(&cinfo);
     jpeg_destroy_compress(&cinfo);
 
     //free(frame_buffer);
-
-    return (written);
-}
-
-/******************************************************************************
-Description.: yuv2jpeg function is based on compress_yuyv_to_jpeg written by
-              Gabriel A. Devenyi.
-              It uses the destination manager implemented above to compress
-              YUYV data to BMP.
-Input Value.: video structure from v4l2uvc.c/h, destination buffer and buffersize
-              the buffer must be large enough, no error/size checking is done!
-Return Value: the buffer will contain the compressed data
-******************************************************************************/
-size_t compress_yuyv_to_bmp(unsigned char *dst, size_t dst_size, unsigned char* src, size_t src_size, unsigned int width, unsigned int height) {
-    int z;
-    int written = 0;
-
-    unsigned char *ptr = dst;
-
-    z = 0;
-    for (size_t line=0; line < height; ++line) {
-        for(size_t x = 0; x < width; x++) {
-            int r, g, b;
-            int y, u, v;
-
-            if(!z)
-                y = src[0] << 8;
-            else
-                y = src[2] << 8;
-            u = src[1] - 128;
-            v = src[3] - 128;
-
-            r = (y + (359 * v)) >> 8;
-            g = (y - (88 * u) - (183 * v)) >> 8;
-            b = (y + (454 * u)) >> 8;
-
-            *(ptr++) = (b > 255) ? 255 : ((b < 0) ? 0 : b);
-            *(ptr++) = (g > 255) ? 255 : ((g < 0) ? 0 : g);
-            *(ptr++) = (r > 255) ? 255 : ((r < 0) ? 0 : r);
-
-            written += 3;
-
-            if(z++) {
-                z = 0;
-                src += 4;
-            }
-        }
-    }
 
     return (written);
 }
@@ -317,32 +285,3 @@ size_t compress_z16_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char* 
     return (written);
 }
 
-size_t compress_z16_to_bmp(unsigned char *dst, size_t dst_size, unsigned char* src, size_t src_size, unsigned int width, unsigned int height, int mm_scale) {
-    unsigned char *ptr = dst;
-    unsigned int written = 0;
-
-    for (uint32_t h=0; h < height; ++h) {
-        for(uint32_t w=0; w < width; ++w) {
-            unsigned short pix_in = src[0] | (src[1] << 8);
-            unsigned char pix_byte = 0;
-
-            /* Scale to one byte - scale is set by settings */
-            if (mm_scale == 0) {
-                pix_in /= PIX_MIN_DISTANCE_MM;
-            } else {
-                pix_in /= mm_scale;
-            }
-
-            if (pix_in > PIX_MAX_VALUE)
-                pix_in = PIX_MAX_VALUE;
-
-            pix_byte = (unsigned char)pix_in;
-
-            *(ptr++) = pix_byte;
-            written += 1;
-            src += 2;
-        }
-    }
-
-    return (written);
-}
