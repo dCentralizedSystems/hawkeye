@@ -536,7 +536,7 @@ const char* get_blob_data_string() {
             }
 
             // write blob string
-            strncat(blobs_string, blob_string, blob_string_len);
+            strcat(blobs_string, blob_string);
 
             blob_string_remaining -= blob_string_len;
             blob_index++;
