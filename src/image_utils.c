@@ -28,11 +28,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "image_utils.h"
 #include "v4l2uvc.h"
-
-#include "logger.h"
 #include "color_detect.h"
+#include "image_utils.h"
 
 #define OUTPUT_BUF_SIZE  4096
 

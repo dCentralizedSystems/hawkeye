@@ -31,7 +31,6 @@
 #include <sys/time.h>
 
 #include "huffman.h"
-#include "logger.h"
 #include "memory.h"
 
 #include "v4l2uvc.h"

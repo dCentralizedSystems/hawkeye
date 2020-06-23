@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <signal.h>
 #include <math.h>
+#include <time.h>
 
 #include "memory.h"
 #include "frames.h"
@@ -11,7 +12,6 @@
 #include "image_utils.h"
 #include "color_detect.h"
 #include "bitmap.h"
-#include "server.h"
 #include "utils.h"
 #include "daemon.h"
 #include "settings.h"

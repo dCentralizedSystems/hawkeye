@@ -13,7 +13,6 @@
 
 #include "memory.h"
 #include "daemon.h"
-#include "logger.h"
 #include "utils.h"
 
 void daemonize() {

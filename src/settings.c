@@ -6,7 +6,6 @@
 #include <linux/videodev2.h>
 
 #include "memory.h"
-#include "logger.h"
 #include "version.h"
 #include "config.h"
 #include "utils.h"

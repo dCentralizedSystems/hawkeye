@@ -8,9 +8,8 @@
 #include <stdbool.h>
 
 // Maximum number of blobs detected
-#define COLOR_DETECT_NUM_BLOBS_MAX      (5)
+#define COLOR_DETECT_NUM_BLOBS_MAX      (10)
 
-#define DEF BLOB_STRING_MAX_LENGTH
 // Color detection structure
 typedef struct {
     float red;
