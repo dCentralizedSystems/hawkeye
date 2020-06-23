@@ -4,7 +4,11 @@
 
 #include <stdbool.h>
 
-size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char* src, size_t src_size, unsigned int width, unsigned int height, int quality, bool detect);
+#include "color_detect.h"
+
+size_t
+compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char *src, size_t src_size, unsigned int width,
+                      unsigned int height, int quality, detect_params_t *p_detect_params);
 size_t compress_z16_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char* src, size_t src_size, unsigned int width, unsigned int height, int quality, int mm_scale);
 
 #endif

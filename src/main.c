@@ -1,30 +1,28 @@
 
-#include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <errno.h>
 #include <signal.h>
-#include <openssl/ssl.h>
+#include <math.h>
+#include <time.h>
 
 #include "memory.h"
-#include "logger.h"
 #include "frames.h"
 #include "v4l2uvc.h"
-#include "jpeg_utils.h"
-#include "server.h"
+#include "image_utils.h"
+#include "color_detect.h"
+#include "bitmap.h"
 #include "utils.h"
 #include "daemon.h"
 #include "settings.h"
-#include "apriltag_process.h"
 
-#define FRAME_BUFFER_LENGTH 8
-#define HTTP_TIMEOUT 0.01
+#define FRAME_BUFFER_LENGTH     (8)
+#define MAX_DETECT_COLORS       (2)
 
 static int is_running = 1;
+
+const char *p_color_detect_file_name = "detect_color_image.bmp~";
+const char *p_color_detect_file_rename = "detect_color_image.bmp";
 
 static void signal_handler(int sig){
     switch (sig) {
@@ -54,29 +52,7 @@ void init_signals(){
     signal(SIGPIPE, SIG_IGN);
 }
 
-// Not used currently, but may use later to gather statistics
-/*
-double get_real_fps(struct video_device *vd, unsigned int rounds) {
-    struct timeval start, end;
-    unsigned int i;
-    double total = 0;
-
-    // Do two grabs first since the first time we run initialization
-    capture_frame(vd);
-    capture_frame(vd);
-
-    for (i = 0; i < rounds; i++) {
-        gettimeofday(&start, NULL);
-        capture_frame(vd);
-        gettimeofday(&end, NULL);
-        total += (double) (end.tv_sec - start.tv_sec) + ((double) (end.tv_usec - start.tv_usec)) / 10000000;
-    }
-
-    return rounds/total;
-}
-*/
-
-struct frame_buffers *init_frame_buffers(size_t device_count, char *device_names[]) {
+struct frame_buffers *init_frame_buffers(size_t device_count, char *device_name) {
     int i;
     struct frame_buffer *fb;
     struct frame_buffers *fbs;
@@ -89,7 +65,7 @@ struct frame_buffers *init_frame_buffers(size_t device_count, char *device_names
         fb = &fbs->buffers[i];
 
         create_frame_buffer(fb, FRAME_BUFFER_LENGTH);
-        if ((fb->vd = create_video_device(device_names[i], settings.width, settings.height, settings.fps, settings.v4l2_format, settings.jpeg_quality)) == NULL) {
+        if ((fb->vd = create_video_device(device_name, settings.width, settings.height, settings.fps, settings.v4l2_format, settings.jpeg_quality)) == NULL) {
             user_panic("Could not initialize video device.");
         }
 
@@ -119,16 +95,15 @@ void write_frame(struct frame_buffer *fb, void *data, size_t data_len) {
     static char out_file_path[128] = {0};
     static char temp_out_file_path[128] = {0};
 
-    memset(out_file_path, 0, 128);
-    memset(temp_out_file_path, 0, 128);
-
-    sprintf(temp_out_file_path, "%s/%s.jpg~", settings.file_root, settings.base_file_name);
-    sprintf(out_file_path, "%s/%s.jpg", settings.file_root, settings.base_file_name);
+    if (out_file_path[0] == 0 && temp_out_file_path[0] == 0) {
+        sprintf(temp_out_file_path, "%s/%s.jpg~", settings.file_root, settings.base_file_name);
+        sprintf(out_file_path, "%s/%s.jpg", settings.file_root, settings.base_file_name);
+    }
 
     /* Only write files for specific formats */
-    if (fb->vd->format_in == V4L2_PIX_FMT_MJPEG ||
-	    fb->vd->format_in == V4L2_PIX_FMT_YUYV ||
+    if (fb->vd->format_in == V4L2_PIX_FMT_YUYV ||
 	    fb->vd->format_in == V4L2_PIX_FMT_Z16) {
+
     	/* Open and write the file */
     	FILE* p_file = fopen(temp_out_file_path, "w+");
 
@@ -137,7 +112,9 @@ void write_frame(struct frame_buffer *fb, void *data, size_t data_len) {
        	 	return;
     	}
 
+    	// write the correct type of file
     	fwrite(data, data_len, 1, p_file);
+
     	fflush(p_file);
     	fclose(p_file);
 
@@ -146,84 +123,177 @@ void write_frame(struct frame_buffer *fb, void *data, size_t data_len) {
     }
 }
 
-void grab_frame(struct frame_buffer *fb) {
-    unsigned char buf[fb->vd->framebuffer_size];
+bool parseDetectColor(const char *p_detect_color_string, uint32_t detect_color_len, detect_color_t* p_detect_color) {
+
+    if (!p_detect_color_string || detect_color_len != DETECT_COLOR_LENGTH || p_detect_color_string[0] != '#') {
+        return false;
+    }
+
+    // parse
+    unsigned long hexVal = strtoul(&p_detect_color_string[1], NULL, 16);
+
+    // extract rgb
+    hexVal &= 0xFFFFFF;
+    p_detect_color->red = hexVal >> 16;
+    p_detect_color->green = (hexVal >> 8) & 0xFF;
+    p_detect_color->blue = hexVal & 0xFF;
+
+    printf("Converting %s -> r: %f g: %f b: %f\n", p_detect_color_string, p_detect_color->red, p_detect_color->green, p_detect_color->blue);
+
+    return true;
+}
+
+void grab_frame(struct frame_buffer *fb, bool b_color_detect, detect_params_t *p_detect_params) {
+    uint8_t *buf = NULL;
+    uint32_t buf_size = 0;
+
+    buf = (uint8_t *) malloc(fb->vd->framebuffer_size);
+    buf_size = fb->vd->framebuffer_size;
+
+    if (!buf) {
+        perror("Couldn't allocate output frame data buffer");
+        return;
+    }
+
     size_t frame_size = 0;
-    
     frame_size = capture_frame(fb->vd);
 
-    if (frame_size <= 0) {
-        log_it(LOG_ERROR, "Could not capture frame.");
-    }
-    else {
-	/* Process by input format type (output type is always JPEG) */
+    if (frame_size > 0) {
+        /* Process by input format type (output type is always JPEG) */
         switch (fb->vd->format_in) {
-            case V4L2_PIX_FMT_MJPEG:
-                frame_size = copy_frame(buf, sizeof(buf), fb->vd->framebuffer, frame_size);
-                break;
             case V4L2_PIX_FMT_YUYV:
-                frame_size = compress_yuyv_to_jpeg(buf, sizeof(buf), fb->vd->framebuffer, frame_size, fb->vd->width, fb->vd->height, fb->vd->jpeg_quality, settings.apriltag_detect);
+                if (b_color_detect) {
+                    frame_size = compress_yuyv_to_jpeg(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width,
+                                                       fb->vd->height, fb->vd->jpeg_quality, p_detect_params);
+                } else {
+                    frame_size = compress_yuyv_to_jpeg(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width,
+                                                       fb->vd->height, fb->vd->jpeg_quality, NULL);
+                }
                 break;
-       	    case V4L2_PIX_FMT_Z16:
-                frame_size = compress_z16_to_jpeg(buf, sizeof(buf), fb->vd->framebuffer, frame_size, fb->vd->width, fb->vd->height, fb->vd->jpeg_quality, settings.mm_scale);
+            case V4L2_PIX_FMT_Z16:
+                frame_size = compress_z16_to_jpeg(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width,
+                                                      fb->vd->height, fb->vd->jpeg_quality, settings.mm_scale);
                 break;
             default:
                 panic("Video device is using unknown format.");
                 break;
         }
+
+        write_frame(fb, buf, frame_size);
     }
 
-    write_frame(fb, buf, frame_size);
+    free(buf);
+    buf = NULL;
 
     requeue_device_buffer(fb->vd);
-
-    add_frame(fb, buf, frame_size);
 }
+
 
 int main(int argc, char *argv[]) {
     int i;
     struct frame_buffers *fbs;
     struct frame_buffer *fb;
-    struct server *s;
     struct timespec ts;
 
     double delta;
+    static double fps_avg = 0.0f;
+    double fps;
+
+    bool b_detect_color = false;
+
+    bool calc_fps = false;
+
+    bmInit();
+    colorDetectInit();
 
     init_settings(argc, argv);
+
+    // detect color
+    if (settings.detect_color_count > 2) {
+        perror("Invalid number of detect colors");
+        return -1;
+    }
+
+    if (settings.detect_color_count >= 1) {
+        detect_color_t color1;
+        b_detect_color |= parseDetectColor(settings.detect_color1, strlen(settings.detect_color1), &color1);
+        b_detect_color &= calcNorms(&color1);
+
+        if (b_detect_color) {
+            setDetectColor(&color1, 0);
+        }
+    }
+
+    if (settings.detect_color_count == 2) {
+        detect_color_t color2;
+
+        b_detect_color &= parseDetectColor(settings.detect_color2, strlen(settings.detect_color2), &color2);
+        b_detect_color &= calcNorms(&color2);
+
+        if (b_detect_color) {
+            setDetectColor(&color2, 1);
+        }
+    }
+
+    float color_detect_tolerance = ((float)settings.detect_tolerance) / 100.0f;
+
+    // bound color-detect tolerance percentage
+    if (color_detect_tolerance < 0.05f) {
+        color_detect_tolerance = 0.05f;
+    } else if (color_detect_tolerance > 0.90f) {
+        color_detect_tolerance = 0.90f;
+    }
+
+    if (settings.detect_tolerance == 0) {
+        // this disabled color detection
+        b_detect_color = false;
+        color_detect_tolerance = 0.0f;
+    }
+
+    printf("%s: detect tolerance %f%% from %d\n", __func__, color_detect_tolerance, settings.detect_tolerance);
+
+    // proflie fps
+    if (settings.profile_fps != 0) {
+        calc_fps = true;
+    }
 
     if (settings.run_in_background) {
         daemonize();
     }
 
-    if (strlen(settings.pid_file) > 0 ) {
-        write_pid(settings.pid_file, settings.user, settings.group);
-    }   
-
     init_signals();
 
-    open_log(settings.log_file, settings.log_level);
+    fbs = init_frame_buffers(settings.video_device_count, settings.video_device_file);
 
-    fbs = init_frame_buffers(settings.video_device_count, settings.video_device_files);
+    // set up color-detection parameters
+    detect_params_t detect_params;
 
-    if (strlen(settings.log_file) > 0) {
-        nchown(settings.log_file, settings.user, settings.group);
-    }
-
-    log_it(LOG_INFO, "Starting server.");
-
-    SSL_library_init();
-    s = create_server(settings.host, settings.port, fbs, settings.static_root, settings.auth, settings.ssl_cert_file, settings.ssl_key_file);
-
-    drop_privileges(settings.user, settings.group);
+    build_detect_params(&detect_params,
+                             settings.detect_color_count,
+                             color_detect_tolerance,
+                             settings.min_detect_conf,
+                             settings.write_detect_image,
+                             settings.write_detect_image,
+                             settings.file_root,
+                             "color-detect-image.bmp") ;
 
     while (is_running) {
         delta = gettime();
         for (i = 0; i < fbs->count; i++) {
             fb = &fbs->buffers[i];
-            grab_frame(fb);
+            grab_frame(fb, b_detect_color, &detect_params);
         }
 
-        serve_clients(s, fbs, HTTP_TIMEOUT);
+        if (calc_fps) {
+            fps = 1.0f / ((gettime() - delta) / fbs->count);
+            if (fps_avg == 0.0f) {
+                fps_avg = fps;
+            } else {
+                fps_avg += fps;
+                fps_avg /= 2;
+            }
+            printf("%s: fps: %f\n", __func__, fps_avg);
+        }
 
         delta = gettime() - delta;
         if (delta > 0) {
@@ -232,19 +302,9 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    destroy_server(s);
     destroy_frame_buffers(fbs);
-    EVP_cleanup();
-
-    log_it(LOG_INFO, "Shutting down.");
-
-    if (strlen(settings.pid_file) > 0 ) {
-        unlink(settings.pid_file);
-    }
 
     cleanup_settings();
-
-    close_log();
 
     return 0;
 }

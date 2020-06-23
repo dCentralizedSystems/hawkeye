@@ -28,13 +28,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "jpeg_utils.h"
 #include "v4l2uvc.h"
-
-#include "logger.h"
-
-/* For detection of apriltags */
-#include "apriltag_process.h"
+#include "color_detect.h"
+#include "image_utils.h"
 
 #define OUTPUT_BUF_SIZE  4096
 
@@ -137,12 +133,13 @@ Input Value.: video structure from v4l2uvc.c/h, destination buffer and buffersiz
               the buffer must be large enough, no error/size checking is done!
 Return Value: the buffer will contain the compressed data
 ******************************************************************************/
-size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char* src, size_t src_size, unsigned int width, unsigned int height, int quality, bool detect) {
+size_t
+compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char *src, size_t src_size, unsigned int width,
+                      unsigned int height, int quality, detect_params_t *p_detect_params) {
     struct jpeg_compress_struct cinfo;
     struct jpeg_error_mgr jerr;
     JSAMPROW row_pointer[height];
     static unsigned char *frame_buffer = NULL;
-    static image_u8_t *p_img = NULL;
     int z;
     static int written;
 
@@ -150,10 +147,6 @@ size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char*
         frame_buffer = calloc(width * 3 * height, 1);
     }
 
-    if (detect && p_img == NULL) {
-	    p_img = image_u8_create_stride(width, height, width);
-    }
-   
     cinfo.err = jpeg_std_error(&jerr);
     jpeg_create_compress(&cinfo);
     dest_buffer(&cinfo, dst, dst_size, &written);
@@ -169,7 +162,6 @@ size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char*
     jpeg_start_compress(&cinfo, TRUE);
 
     unsigned char *ptr = frame_buffer;
-    unsigned char *detect_ptr = (detect) ? p_img->buf : NULL;
 
     z = 0;
     for (size_t line=0; line < height; ++line) {
@@ -195,10 +187,6 @@ size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char*
             *(ptr++) = (g > 255) ? 255 : ((g < 0) ? 0 : g);
             *(ptr++) = (b > 255) ? 255 : ((b < 0) ? 0 : b);
 
-	        if (detect) {
-		      *(detect_ptr++) = (r+b+g)/3;
-            }      
-
             if(z++) {
                 z = 0;
                 src += 4;
@@ -206,16 +194,17 @@ size_t compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char*
         }
     }
 
-    /* Detect */
-    char *p_comment = NULL;
-    if (detect) {
-        p_comment = apriltag_process(p_img);
-    }
+    // perform color detection, if requested
+    if (p_detect_params != NULL) {
+        static char blob_string[1024];
+        memset(blob_string, 0, 1024);
 
-    /* Write JPEG COM marker and data, if specified */
-    if (p_comment != NULL) {
-	    jpeg_write_marker(&cinfo, JPEG_COM, (unsigned char*)p_comment, strlen(p_comment));
-	    //free(p_comment);
+        const char* p_rgb_blob_string = rgb_color_detection(frame_buffer, width, height, p_detect_params);
+        /* Detect blobs */
+        if (p_rgb_blob_string != NULL) {
+            /* Write blob data string into JPEG_COM section in image */
+            jpeg_write_marker(&cinfo, JPEG_COM, (unsigned char *) p_rgb_blob_string, strlen(p_rgb_blob_string));
+        }
     }
 
     jpeg_write_scanlines(&cinfo, row_pointer, height);
@@ -293,3 +282,4 @@ size_t compress_z16_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char* 
 
     return (written);
 }
+
