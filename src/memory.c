@@ -5,23 +5,7 @@
 #include <pthread.h>
 #include <stdarg.h>
 
-#include "memory.h"
-
-void user_panic(const char* fmt, ...) {
-	va_list args;
-	va_start(args, fmt);
-	vfprintf(stderr, fmt, args);
-	va_end(args);
-
-    fprintf(stderr, "\n");
-
-	exit(EXIT_FAILURE);
-}
-
-void panic(const char* str) {
-	perror(str);
-	exit(EXIT_FAILURE);
-}
+#include "logger.h"
 
 // Memory allocator wrappers
 
@@ -35,7 +19,7 @@ char* __wrap_strdup(const char *s) {
 	char error[512];
 	if (ptr == NULL) {
 		strerror_r(errno, (char *) &error, sizeof(error));
-		fprintf(stderr,"strdup() failed: (%d) %s", errno, error);
+		log_syslog("strdup() failed: (%d) %s", errno, error);
 		exit(EXIT_FAILURE);
 	}
 
@@ -47,7 +31,7 @@ void* __wrap_malloc(size_t size) {
 	char error[512];
 	if (tmp == NULL) {
 		strerror_r(errno, (char *) &error, sizeof(error));
-		fprintf(stderr, "malloc() failed: (%d) %s", errno, error);
+		log_syslog("malloc() failed: (%d) %s", errno, error);
 		exit(EXIT_FAILURE);
 	}
 	return tmp;
@@ -58,7 +42,7 @@ void* __wrap_realloc(void *ptr, size_t size) {
 	char error[512];
 	if (tmp == NULL) {
 		strerror_r(errno, (char *) &error, sizeof(error));
-		fprintf(stderr, "realloc() failed: (%d) %s", errno, error);
+		log_syslog("realloc() failed: (%d) %s", errno, error);
 		exit(EXIT_FAILURE);
 	}
 	return tmp;
@@ -69,7 +53,7 @@ void* __wrap_calloc(size_t num, size_t size) {
 	char error[512];
 	if (tmp == NULL) {
 		strerror_r(errno, (char *) &error, sizeof(error));
-		fprintf(stderr, "calloc() failed: (%d) %s", errno, error);
+		log_syslog("calloc() failed: (%d) %s", errno, error);
 		exit(EXIT_FAILURE);
 	}
 	return tmp;

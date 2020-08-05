@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "bitmap.h"
+#include "logger.h"
 #include "color_detect.h"
 
 #define MIN_HORIZ_PIXELS_FOR_FEATURE_LINE   (3)
@@ -194,7 +195,7 @@ static int find_containing_blob(int w_min, int w_max, int h_last, int image_widt
 static void append_blob(int w_min, int w_max, int h_last, int index, uint32_t detect_color_index) {
 
     if (w_min < 0 || w_max < 0 || index < 0 || index > COLOR_DETECT_NUM_BLOBS_MAX) {
-        perror("Invalid blob or segment");
+        log_syslog("Invalid blob or segment");
         return;
     }
     blob_t *p_blob = &detections.blobs[index];

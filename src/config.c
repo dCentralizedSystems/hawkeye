@@ -5,6 +5,7 @@
 
 #include "memory.h"
 #include "utils.h"
+#include "logger.h"
 
 #include "config.h"
 
@@ -117,7 +118,7 @@ static void process_option(struct config *con, char key, char *value) {
     }
 
     if (!found) {
-        user_panic("Uknown option: %c.", key);
+        log_syslog_panic("Uknown option: %c.", key);
     }
 
     set_config_item_value(c, value);
@@ -175,7 +176,7 @@ void read_config_file(struct config *con, char *filename) {
     name = value = NULL;
 
 	if (NULL == (fp = fopen(filename, "r"))) {
-		panic("Could not open config file");
+		log_syslog_panic("Could not open config file");
 	}
 
 	while(NULL != fgets(line, sizeof(line), fp)) {
@@ -185,7 +186,7 @@ void read_config_file(struct config *con, char *filename) {
             key = get_key_by_name(con, name);
 
             if (key == '\0') {
-                user_panic("Found unknown option in config file: '%s'.", name);
+                log_syslog_panic("Found unknown option in config file: '%s'.", name);
             }
 
 			process_option(con, key, value);

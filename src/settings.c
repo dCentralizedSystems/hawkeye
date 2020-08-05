@@ -9,6 +9,7 @@
 #include "version.h"
 #include "config.h"
 #include "utils.h"
+#include "logger.h"
 
 #include "settings.h"
 
@@ -22,7 +23,7 @@ static void normalize_path(char **path, const char *error) {
     }
 
     if (NULL == realpath(*path, tmp_path)) {
-        panic(error);
+        log_syslog_panic(error);
     }
 
     free(*path);
@@ -31,13 +32,13 @@ static void normalize_path(char **path, const char *error) {
 
 void print_usage() {
     fprintf(stdout, "Usage: %s [-d] [-P pidfile]\n", program_name);
-    fprintf(stdout, "       [-l logfile] [-u user] [-g group] [-F fps] [-D video-device] [-W width]\n");
+    fprintf(stdout, "       [-u user] [-g group] [-F fps] [-D video-device] [-W width]\n");
     fprintf(stdout, "       [-H height] [-j jpeg-quality] [-L log-level] [-f format] [-A user:pass]\n");
     fprintf(stdout, "       [-r file-root] [-b base_file_name] [-m mm-scale] [-P profile-fps] [-B #RRGGBB]  [-B #RRGGBB] [-M (0-10000)]\n");
     fprintf(stdout, "       [-T detect-tolerance-percent]\n");
     fprintf(stdout, "\n");
     fprintf(stdout, "Usage: %s [--daemon]\n", program_name);
-    fprintf(stdout, "       [--pid=path] [--log=path] [--user=user] [--group=group]\n");
+    fprintf(stdout, "       [--pid=path][--user=user] [--group=group]\n");
     fprintf(stdout, "       [--fps=fps][--device=video-device] [--width=width] [--height=height]\n");
     fprintf(stdout, "       [--quality=quality] [--log-level=log-level] [--format=format]\n");
     fprintf(stdout, "       [--file-root=file-root] [--base-file-name=base-file-name]\n");

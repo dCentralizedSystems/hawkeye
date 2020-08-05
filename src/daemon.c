@@ -12,6 +12,7 @@
 #include <libgen.h>
 
 #include "memory.h"
+#include "logger.h"
 #include "daemon.h"
 #include "utils.h"
 
@@ -21,7 +22,7 @@ void daemonize() {
 
 	pid = fork();
 	if (pid < 0) {
-		panic("Could not fork");
+		log_syslog_panic("Could not fork");
 	}
 
 	if (pid > 0) {
@@ -32,11 +33,11 @@ void daemonize() {
 	sid = setsid();
 
 	if (sid < 0) {
-		panic("Could not get new session ID");
+        log_syslog_panic("Could not get new session ID");
 	}
 
 	if (chdir("/") < 0) {
-		panic("Changing background process direcotry");
+        log_syslog_panic("Changing background process direcotry");
 	}
 
 	umask(0022);
@@ -61,7 +62,7 @@ void write_pid(const char *pid_file, const char *user, const char *group) {
 
     if (!file_exists(pid_dir)) {
         if (mkdir(pid_dir, 0755) != 0) {
-            panic("Could not create directory for PID file");
+            log_syslog_panic("Could not create directory for PID file");
         }
     }
     nchown(pid_dir, user, group);
@@ -69,17 +70,17 @@ void write_pid(const char *pid_file, const char *user, const char *group) {
 
     if ((f = open(pid_file, O_CREAT | O_EXCL | O_WRONLY, 00644)) < 0) {
         if (errno == EEXIST) {
-            panic("PID file already exists");
+            log_syslog_panic("PID file already exists");
         }
         else {
-            panic("Could not create PID file");
+            log_syslog_panic("Could not create PID file");
         }
     }
 
 	snprintf(pidstr, sizeof(pidstr), "%d", pid);
 
     if (write(f, pidstr, strlen(pidstr)) != strlen(pidstr)) {
-        panic("Could not write to PID file");
+        log_syslog_panic("Could not write to PID file");
     }
 
 	close(f);
@@ -94,24 +95,24 @@ void drop_privileges(const char *user, const char *group) {
     }
 
     if ((pw = getpwnam(user)) == NULL) {
-        panic("Desired user does not exist");
+        log_syslog_panic("Desired user does not exist");
     }
 
     if ((gr = getgrnam(group)) == NULL) {
-        panic("Desired group does not exist");
+        log_syslog_panic("Desired group does not exist");
     }
 
     if (getuid() == 0) {
         if (setgid(gr->gr_gid) != 0) {
-            panic("Unable to drop group privileges");
+            log_syslog_panic("Unable to drop group privileges");
         }
 
         if (setuid(pw->pw_uid) != 0) {
-            panic("Unable to drop user privileges");
+            log_syslog_panic("Unable to drop user privileges");
         }
 
         if (setuid(0) != -1) {
-             panic("Managed to regain root privileges");
+            log_syslog_panic("Managed to regain root privileges");
         }
 
     }
@@ -130,15 +131,15 @@ void nchown(const char *filename, const char *user, const char *group) {
     }
 
     if ((pw = getpwnam(user)) == NULL) {
-        panic("Desired user does not exist");
+        log_syslog_panic("Desired user does not exist");
     }
 
     if ((gr = getgrnam(group)) == NULL) {
-        panic("Desired group does not exist");
+        log_syslog_panic("Desired group does not exist");
     }
 
     if (0 != chown(filename, pw->pw_uid, gr->gr_gid)) {
-        panic("Could not chown file");
+        log_syslog_panic("Could not chown file");
     }
 }
 

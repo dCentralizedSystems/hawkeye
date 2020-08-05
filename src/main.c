@@ -6,6 +6,7 @@
 #include <math.h>
 #include <time.h>
 
+#include "logger.h"
 #include "memory.h"
 #include "frames.h"
 #include "v4l2uvc.h"
@@ -66,7 +67,7 @@ struct frame_buffers *init_frame_buffers(size_t device_count, char *device_name)
 
         create_frame_buffer(fb, FRAME_BUFFER_LENGTH);
         if ((fb->vd = create_video_device(device_name, settings.width, settings.height, settings.fps, settings.v4l2_format, settings.jpeg_quality)) == NULL) {
-            user_panic("Could not initialize video device.");
+            log_syslog_panic("Could not initialize video device.");
         }
 
         fbs->count++;
@@ -108,7 +109,7 @@ void write_frame(struct frame_buffer *fb, void *data, size_t data_len) {
     	FILE* p_file = fopen(temp_out_file_path, "w+");
 
     	if (p_file == NULL) {
-        	panic("Can't write output image file.");
+        	log_syslog_panic("Can't write output image file.");
        	 	return;
     	}
 
@@ -151,7 +152,7 @@ void grab_frame(struct frame_buffer *fb, bool b_color_detect, detect_params_t *p
     buf_size = fb->vd->framebuffer_size;
 
     if (!buf) {
-        perror("Couldn't allocate output frame data buffer");
+        log_syslog("Couldn't allocate output frame data buffer");
         return;
     }
 
@@ -175,7 +176,7 @@ void grab_frame(struct frame_buffer *fb, bool b_color_detect, detect_params_t *p
                                                       fb->vd->height, fb->vd->jpeg_quality, settings.mm_scale);
                 break;
             default:
-                panic("Video device is using unknown format.");
+                log_syslog_panic("Video device is using unknown format.");
                 break;
         }
 
@@ -203,6 +204,9 @@ int main(int argc, char *argv[]) {
 
     bool calc_fps = false;
 
+    // init logger
+    log_init();
+
     bmInit();
     colorDetectInit();
 
@@ -210,7 +214,7 @@ int main(int argc, char *argv[]) {
 
     // detect color
     if (settings.detect_color_count > 2) {
-        perror("Invalid number of detect colors");
+        log_syslog("Invalid number of detect colors");
         return -1;
     }
 
@@ -305,6 +309,8 @@ int main(int argc, char *argv[]) {
     destroy_frame_buffers(fbs);
 
     cleanup_settings();
+
+    log_close();
 
     return 0;
 }

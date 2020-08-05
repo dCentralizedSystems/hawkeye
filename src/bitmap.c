@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "bitmap.h"
+#include "logger.h"
 
 #pragma pack(push,1)
 typedef struct {
@@ -53,14 +54,14 @@ bool bmWriteBitmap(FILE *fp, uint32_t width, uint32_t height, uint8_t bytesPerPi
     info.biHeight = -height;
 
     if (!p_buf || !fp || imageSizeBytes == 0) {
-        perror("Invalid params");
+        log_syslog("Invalid params");
         printf("%s: imageSizeBytes == %lu\n", __func__, imageSizeBytes);
         return false;
     }
 
     // Check that passed image parameters make sense
     if (width * height * bytesPerPixel != imageSizeBytes) {
-        perror( "image size incorrect");
+        log_syslog( "image size incorrect");
         return false;
     }
 
@@ -75,7 +76,7 @@ bool bmWriteBitmap(FILE *fp, uint32_t width, uint32_t height, uint8_t bytesPerPi
     uint8_t *p_pix = (uint8_t*) malloc(output_bytes);
 
     if (!p_pix) {
-        perror("Can't allocate memory for image file buffer");
+        log_syslog("Can't allocate memory for image file buffer");
         return false;
     }
 
@@ -174,14 +175,14 @@ bool bmWriteBitmapWithColorTable(FILE *fp, uint32_t width, uint32_t height, rgbC
     info.biHeight = -height;
 
     if (!p_buf || !fp || imageSizeBytes == 0) {
-        perror("Invalid params");
+        log_syslog("Invalid params");
         printf("%s: imageSizeBytes == %lu\n", __func__, imageSizeBytes);
         return false;
     }
 
     // Check that passed image parameters make sense
     if (width * height != imageSizeBytes) {
-        perror( "image size incorrect");
+        log_syslog( "image size incorrect");
         return false;
     }
 
@@ -196,7 +197,7 @@ bool bmWriteBitmapWithColorTable(FILE *fp, uint32_t width, uint32_t height, rgbC
     uint8_t *p_pix = (uint8_t*) malloc(output_bytes);
 
     if (!p_pix) {
-        perror("Can't allocate memory for image file buffer");
+        log_syslog("Can't allocate memory for image file buffer");
         return false;
     }
 

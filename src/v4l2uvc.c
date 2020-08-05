@@ -32,6 +32,7 @@
 
 #include "huffman.h"
 #include "memory.h"
+#include "logger.h"
 
 #include "v4l2uvc.h"
 
@@ -49,8 +50,8 @@ static int xioctl(int fd, int IOCTL_X, void *arg) {
             ((errno == EINTR) || (errno == EAGAIN) || (errno == ETIMEDOUT)));
 
     if (ret && tries <= 0) {
-        fprintf(stderr, "ioctl (%x) retried %i times - giving up: %s.", IOCTL_X, IOCTL_RETRY, strerror(errno));
-        user_panic("ioctl error.");
+        fprintf(stderr,"ioctl (%x) retried %i times - giving up: %s.", IOCTL_X, IOCTL_RETRY, strerror(errno));
+        log_syslog_panic("ioctl error.");
     }
 
     return (ret);
@@ -88,7 +89,7 @@ struct video_device *create_video_device(char *device, int width, int height, in
     vd->resolutions = NULL;
 
     if (init_v4l2(vd) < 0) {
-        user_panic("Init V4L2 failed on device %s.", vd->device_filename);
+        log_syslog_panic("Init V4L2 failed on device %s.", vd->device_filename);
     }
 
     // enumerating formats
@@ -162,7 +163,7 @@ struct video_device *create_video_device(char *device, int width, int height, in
             vd->framebuffer = (unsigned char *) malloc(vd->framebuffer_size);
             break;
         default:
-            user_panic("init_video_in: Unsupported format.");
+            log_syslog_panic("init_video_in: Unsupported format.");
             break;
     }
 
@@ -174,30 +175,30 @@ int init_v4l2(struct video_device *vd) {
     struct v4l2_streamparm setfps;
 
     if ((vd->fd = OPEN_VIDEO(vd->device_filename, O_RDWR)) == -1) {
-        fprintf(stderr, "Error opening V4L2 interface on %s. errno %d", vd->device_filename, errno);
+        log_syslog("Error opening V4L2 interface on %s. errno %d", vd->device_filename, errno);
     }
 
     memset(&vd->cap, 0, sizeof(struct v4l2_capability));
 
     if (xioctl(vd->fd, VIDIOC_QUERYCAP, &vd->cap) < 0) {
-        fprintf(stderr, "Error opening device %s: unable to query device.", vd->device_filename);
+        log_syslog("Error opening device %s: unable to query device.", vd->device_filename);
         return -1;
     }
 
     if ((vd->cap.capabilities & V4L2_CAP_VIDEO_CAPTURE) == 0) {
-        fprintf(stderr, "Error opening device %s: video capture not supported.", vd->device_filename);
+        log_syslog("Error opening device %s: video capture not supported.", vd->device_filename);
         return -1;
     }
 
     if (vd->use_streaming) {
         if (!(vd->cap.capabilities & V4L2_CAP_STREAMING)) {
-            fprintf(stderr, "%s does not support streaming I/O", vd->device_filename);
+            log_syslog("%s does not support streaming I/O", vd->device_filename);
             return -1;
         }
     }
     else {
         if (!(vd->cap.capabilities & V4L2_CAP_READWRITE)) {
-            fprintf(stderr, "%s does not support read I/O", vd->device_filename);
+            log_syslog("%s does not support read I/O", vd->device_filename);
             return -1;
         }
     }
@@ -213,21 +214,21 @@ int init_v4l2(struct video_device *vd) {
     vd->fmt.fmt.pix.field = V4L2_FIELD_ANY;
 
     if (xioctl(vd->fd, VIDIOC_S_FMT, &vd->fmt) < 0) {
-        fprintf(stdout, "Unable to set format %d, res %dx%d, device %s. Trying fallback.", vd->format_in, vd->width, vd->height, vd->device_filename);
+        log_syslog("Unable to set format %d, res %dx%d, device %s. Trying fallback.", vd->format_in, vd->width, vd->height, vd->device_filename);
 
         // Try the fallback format
         vd->format_in = UVC_FALLBACK_FORMAT;
         vd->fmt.fmt.pix.pixelformat = vd->format_in;
 
         if (xioctl(vd->fd, VIDIOC_S_FMT, &vd->fmt) < 0) {
-            fprintf(stderr, "Unable to set fallback format %d, res %dx%d, device %s.", vd->format_in, vd->width, vd->height, vd->device_filename);
+            log_syslog("Unable to set fallback format %d, res %dx%d, device %s.", vd->format_in, vd->width, vd->height, vd->device_filename);
             return -1;
         }
     }
 
     if ((vd->fmt.fmt.pix.width != vd->width) ||
             (vd->fmt.fmt.pix.height != vd->height)) {
-        fprintf(stdout, "The format asked unavailable, so the width %d height %d on device %s.", vd->fmt.fmt.pix.width, vd->fmt.fmt.pix.height, vd->device_filename);
+        log_syslog("The format asked unavailable, so the width %d height %d on device %s.", vd->fmt.fmt.pix.width, vd->fmt.fmt.pix.height, vd->device_filename);
 
         vd->width = vd->fmt.fmt.pix.width;
         vd->height = vd->fmt.fmt.pix.height;
@@ -235,13 +236,13 @@ int init_v4l2(struct video_device *vd) {
         // look the format is not part of the deal ???
         if (vd->format_in != vd->fmt.fmt.pix.pixelformat) {
             if (vd->format_in == V4L2_PIX_FMT_MJPEG) {
-                fprintf(stderr, "The input device %s does not supports MJPEG mode.\nYou may also try the YUV mode, but it requires a much more CPU power.", vd->device_filename);
+                log_syslog("The input device %s does not supports MJPEG mode.\nYou may also try the YUV mode, but it requires a much more CPU power.", vd->device_filename);
                 return -1;
             } else if (vd->format_in == V4L2_PIX_FMT_YUYV) {
-                fprintf(stderr, "The input device %s does not supports YUV mode.", vd->device_filename);
+                log_syslog("The input device %s does not supports YUV mode.", vd->device_filename);
                 return -1;
             } else if (vd->format_in == V4L2_PIX_FMT_Z16) {
-                fprintf(stderr, "The input device %s does not supports Z16 mode.", vd->device_filename);
+                log_syslog("The input device %s does not supports Z16 mode.", vd->device_filename);
                 return -1;
             }
         } else {
@@ -256,7 +257,7 @@ int init_v4l2(struct video_device *vd) {
     setfps.parm.capture.timeperframe.denominator = vd->fps;
 
     if (xioctl(vd->fd, VIDIOC_S_PARM, &setfps) < 0) {
-        fprintf(stderr, "Unable to set FPS to %d on device %s.", vd->fps, vd->device_filename);
+        log_syslog("Unable to set FPS to %d on device %s.", vd->fps, vd->device_filename);
         return -1;
     }
 
@@ -268,7 +269,7 @@ int init_v4l2(struct video_device *vd) {
     vd->rb.memory = V4L2_MEMORY_MMAP;
 
     if (xioctl(vd->fd, VIDIOC_REQBUFS, &vd->rb) < 0) {
-        fprintf(stderr, "Unable to allocate buffers for device %s.", vd->device_filename);
+        log_syslog("Unable to allocate buffers for device %s.", vd->device_filename);
         return -1;
     }
 
@@ -279,7 +280,7 @@ int init_v4l2(struct video_device *vd) {
         vd->buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
         vd->buf.memory = V4L2_MEMORY_MMAP;
         if (xioctl(vd->fd, VIDIOC_QUERYBUF, &vd->buf)) {
-            fprintf(stderr, "Unable to query buffer on device %s.", vd->device_filename);
+            log_syslog("Unable to query buffer on device %s.", vd->device_filename);
             return -1;
         }
 
@@ -287,7 +288,7 @@ int init_v4l2(struct video_device *vd) {
                           vd->buf.length, PROT_READ | PROT_WRITE, MAP_SHARED, vd->fd,
                           vd->buf.m.offset);
         if (vd->mem[i] == MAP_FAILED) {
-            fprintf(stderr, "Unable to map buffer on device %s.", vd->device_filename);
+            log_syslog("Unable to map buffer on device %s.", vd->device_filename);
             return -1;
         }
     }
@@ -300,13 +301,13 @@ int init_v4l2(struct video_device *vd) {
         vd->buf.memory = V4L2_MEMORY_MMAP;
 
         if (xioctl(vd->fd, VIDIOC_QBUF, &vd->buf) < 0) {
-            fprintf(stderr, "Unable to query buffer on device %s.", vd->device_filename);
+            log_syslog("Unable to query buffer on device %s.", vd->device_filename);
             return -1;
         }
     }
 
     if (video_enable(vd)) {
-        fprintf(stderr, "Unable to enable video for device %s.", vd->device_filename);
+        log_syslog("Unable to enable video for device %s.", vd->device_filename);
         return -1;
     }
 
@@ -320,7 +321,7 @@ static int video_enable(struct video_device *vd) {
     fprintf(stdout, "Starting capture on device %s.", vd->device_filename);
     ret = xioctl(vd->fd, VIDIOC_STREAMON, &type);
     if (ret < 0) {
-        fprintf(stderr, "Unable to start capture on device %s", vd->device_filename);
+        log_syslog("Unable to start capture on device %s", vd->device_filename);
         return ret;
     }
     vd->streaming_state = STREAMING_ON;
@@ -334,7 +335,7 @@ static int video_disable(struct video_device *vd, streaming_state disabledState)
     fprintf(stdout, "Stopping capture on device %s.", vd->device_filename);
     ret = xioctl(vd->fd, VIDIOC_STREAMOFF, &type);
     if (ret != 0) {
-        fprintf(stderr, "Unable to stop capture on device %s.", vd->device_filename);
+        log_syslog("Unable to stop capture on device %s.", vd->device_filename);
         return ret;
     }
     fprintf(stdout, "Stopping capture done on device %s.", vd->device_filename);
@@ -406,7 +407,7 @@ size_t capture_frame(struct video_device *vd) {
     vd->buf.memory = V4L2_MEMORY_MMAP;
 
     if (xioctl(vd->fd, VIDIOC_DQBUF, &vd->buf) < 0) {
-        fprintf(stderr, "Unable to dequeue buffer on device %s.", vd->device_filename);
+        log_syslog("Unable to dequeue buffer on device %s.", vd->device_filename);
         return -1;
     }
 
@@ -443,7 +444,7 @@ size_t capture_frame(struct video_device *vd) {
 
 int requeue_device_buffer(struct video_device *vd) {
     if (xioctl(vd->fd, VIDIOC_QBUF, &vd->buf) < 0) {
-        fprintf(stderr, "Unable to requeue buffer on device %s.", vd->device_filename);
+        log_syslog("Unable to requeue buffer on device %s.", vd->device_filename);
         return -1;
     }
 
@@ -456,7 +457,7 @@ void destroy_video_device(struct video_device *vd) {
     }
 
     if (CLOSE_VIDEO(vd->fd) != 0) {
-        fprintf(stderr, "Failed to close device %s.", vd->device_filename);
+        log_syslog("Failed to close device %s.", vd->device_filename);
     }
 
     free(vd->framebuffer);
