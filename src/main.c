@@ -144,7 +144,7 @@ bool parseDetectColor(const char *p_detect_color_string, uint32_t detect_color_l
     return true;
 }
 
-void grab_frame(struct frame_buffer *fb, bool b_color_detect, detect_params_t *p_detect_params) {
+int grab_frame(struct frame_buffer *fb, bool b_color_detect, detect_params_t *p_detect_params) {
     uint8_t *buf = NULL;
     uint32_t buf_size = 0;
 
@@ -153,7 +153,7 @@ void grab_frame(struct frame_buffer *fb, bool b_color_detect, detect_params_t *p
 
     if (!buf) {
         log_syslog("Couldn't allocate output frame data buffer");
-        return;
+        return -1;
     }
 
     size_t frame_size = 0;
@@ -181,12 +181,19 @@ void grab_frame(struct frame_buffer *fb, bool b_color_detect, detect_params_t *p
         }
 
         write_frame(fb, buf, frame_size);
+    } else if (frame_size < 0) {
+        //error
+        return -1;
     }
 
     free(buf);
     buf = NULL;
 
-    requeue_device_buffer(fb->vd);
+    if (requeue_device_buffer(fb->vd) < 0) {
+        return -1;
+    }
+
+    return 0;
 }
 
 
@@ -285,7 +292,11 @@ int main(int argc, char *argv[]) {
         delta = gettime();
         for (i = 0; i < fbs->count; i++) {
             fb = &fbs->buffers[i];
-            grab_frame(fb, b_detect_color, &detect_params);
+
+            if (grab_frame(fb, b_detect_color, &detect_params) < 0) {
+                //error requiring exit
+                is_running = false;
+            }
         }
 
         if (calc_fps) {

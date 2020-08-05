@@ -401,7 +401,7 @@ size_t copy_frame(unsigned char *dst, const size_t dst_size, unsigned char *src,
     return pos;
 }
 
-size_t capture_frame(struct video_device *vd) {
+int capture_frame(struct video_device *vd) {
     memset(&vd->buf, 0, sizeof(struct v4l2_buffer));
     vd->buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     vd->buf.memory = V4L2_MEMORY_MMAP;
