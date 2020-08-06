@@ -13,7 +13,7 @@
 static bool b_initialized = false;
 
 void log_init(void) {
-    setlogmask(LOG_UPTO(LOG_DEBUG));
+    setlogmask(LOG_UPTO(LOG_INFO));
     openlog("hawkeye", LOG_PID | LOG_NDELAY, LOG_USER);
     b_initialized = true;
 }
