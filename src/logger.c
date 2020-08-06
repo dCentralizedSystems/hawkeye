@@ -13,8 +13,8 @@
 static bool b_initialized = false;
 
 void log_init(void) {
-    setlogmask(LOG_UPTO(LOG_INFO));
-    openlog("hawkeye", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL1);
+    setlogmask(LOG_UPTO(LOG_DEBUG));
+    openlog("hawkeye", LOG_PID | LOG_NDELAY, LOG_USER);
     b_initialized = true;
 }
 
@@ -38,7 +38,7 @@ void log_syslog(const char* fmt, ...) {
     if (b_initialized) {
         va_list args;
         va_start(args, fmt);
-        vsyslog(LOG_NOTICE, fmt, args);
+        vsyslog(LOG_INFO, fmt, args);
         va_end(args);
     }
 }
