@@ -33,9 +33,9 @@ static void normalize_path(char **path, const char *error) {
 void print_usage() {
     fprintf(stdout, "Usage: %s [-d] [-P pidfile]\n", program_name);
     fprintf(stdout, "       [-u user] [-g group] [-F fps] [-D video-device] [-W width]\n");
-    fprintf(stdout, "       [-H height] [-j jpeg-quality] [-L log-level] [-f format] [-A user:pass]\n");
-    fprintf(stdout, "       [-r file-root] [-b base_file_name] [-m mm-scale] [-P profile-fps] [-B #RRGGBB]  [-B #RRGGBB] [-M (0-10000)]\n");
-    fprintf(stdout, "       [-T detect-tolerance-percent]\n");
+    fprintf(stdout, "       [-H height] [-j jpeg-quality] [-L log-level] [-f format]\n");
+    fprintf(stdout, "       [-r file-root] [-b base_file_name] [-m mm-scale] [-P profile-fps] [-B #RRGGBB]  [-C #RRGGBB] [-M (0-10000)]\n");
+    fprintf(stdout, "       [-T detect-tolerance-percent] [-Q write_detect_image]\n");
     fprintf(stdout, "\n");
     fprintf(stdout, "Usage: %s [--daemon]\n", program_name);
     fprintf(stdout, "       [--pid=path][--user=user] [--group=group]\n");
@@ -44,6 +44,7 @@ void print_usage() {
     fprintf(stdout, "       [--file-root=file-root] [--base-file-name=base-file-name]\n");
     fprintf(stdout, "       [--mm-scale=mm_scale] [--profile-fps=profile-fps] [--detect-color1=#RRGGBB] [--detect-color2=#RRGGBB] \n");
     fprintf(stdout, "       [--detect-tolerance=detect-tolerance-percent] [--min-detect-conf=[min blob pixels in 10000ths of total image pixels]\n");
+    fprintf(stdout, "       [--write-detect-image [0|1]]\n");
 
     fprintf(stdout, "Usage: %s [-h]\n", program_name);
     fprintf(stdout, "Usage: %s [-v]\n", program_name);

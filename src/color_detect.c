@@ -20,18 +20,20 @@
 #define WHITE_COLOR_TABLE_INDEX             (3)
 #define BLACK_COLOR_TABLE_INDEX             (2)
 #define GREEN_COLOR_TABLE_INDEX             (4)
-#define PURPLE_COLOR_TABLE_INDEX            (0)
-#define YELLOW_COLOR_TABLE_INDEX            (1)
-#define ORANGE_COLOR_TABLE_INDEX            (5)
+#define PURPLE_COLOR_TABLE_INDEX            (5)
+#define YELLOW_COLOR_TABLE_INDEX            (0)
+#define ORANGE_COLOR_TABLE_INDEX            (1)
+#define BLUE_COLOR_TABLE_INDEX              (6)
 
 #define NO_DETECT_COLOR_TABLE_INDEX         (BLACK_COLOR_TABLE_INDEX)
 
 #define MAX_DETECT_COLORS                   (2)
+#define META_COLOR_TABLE_INDEX              (3)
 
 #define BLOB_STRING_MAX_LENGTH              (1024)
 
-static uint32_t detect_color_table[MAX_DETECT_COLORS] = { PURPLE_COLOR_TABLE_INDEX, YELLOW_COLOR_TABLE_INDEX };
-static uint32_t draw_color_table[MAX_DETECT_COLORS] = { ORANGE_COLOR_TABLE_INDEX, GREEN_COLOR_TABLE_INDEX };
+static uint32_t detect_color_table[MAX_DETECT_COLORS] = { YELLOW_COLOR_TABLE_INDEX, ORANGE_COLOR_TABLE_INDEX };
+static uint32_t draw_color_table[MAX_DETECT_COLORS] = { BLUE_COLOR_TABLE_INDEX, GREEN_COLOR_TABLE_INDEX };
 static detect_color_t detect_colors[MAX_DETECT_COLORS] = { 0 };
 
 // internal type to hold detections and associated data
@@ -77,10 +79,15 @@ void colorDetectInit(void) {
     colorDetectColorTable[YELLOW_COLOR_TABLE_INDEX].red = 255;
     colorDetectColorTable[YELLOW_COLOR_TABLE_INDEX].reserved = 0;
 
-    colorDetectColorTable[ORANGE_COLOR_TABLE_INDEX].blue = 0;
-    colorDetectColorTable[ORANGE_COLOR_TABLE_INDEX].green = 165;
+    colorDetectColorTable[ORANGE_COLOR_TABLE_INDEX].blue = 80;
+    colorDetectColorTable[ORANGE_COLOR_TABLE_INDEX].green = 155;
     colorDetectColorTable[ORANGE_COLOR_TABLE_INDEX].red = 255;
     colorDetectColorTable[ORANGE_COLOR_TABLE_INDEX].reserved = 0;
+
+    colorDetectColorTable[BLUE_COLOR_TABLE_INDEX].blue = 255;
+    colorDetectColorTable[BLUE_COLOR_TABLE_INDEX].green = 145;
+    colorDetectColorTable[BLUE_COLOR_TABLE_INDEX].red = 25;
+    colorDetectColorTable[BLUE_COLOR_TABLE_INDEX].reserved = 0;
 }
 
 // the detections data structure
@@ -242,6 +249,46 @@ static int new_blob(int w_min, int w_max, int h, uint32_t detect_color_index) {
     return -1;
 }
 
+static void update_centroids(detections_t* p_det) {
+    for (size_t i = 0; i < COLOR_DETECT_NUM_BLOBS_MAX; ++i) {
+        blob_t *p_blob = &detections.blobs[i];
+        if (p_blob->valid) {
+            p_blob->cent_x = (p_blob->bb_x_max + p_blob->bb_x_min) / 2;
+            p_blob->cent_y = (p_blob->bb_y_max + p_blob->bb_y_min) / 2;
+            p_blob->complete = true;
+        }
+    }
+}
+
+static int new_meta_blob(const blob_t* p_blob1, const blob_t* p_blob2) {
+    for (size_t i=0; i < COLOR_DETECT_NUM_BLOBS_MAX; ++i) {
+        blob_t *p_blob = &detections.blobs[i];
+        if (!p_blob->valid) {
+            // Calculate merged blob bounding box
+            int bb_x_min = (p_blob1->bb_x_min < p_blob2->bb_x_min) ? p_blob1->bb_x_min : p_blob2->bb_x_min;
+            int bb_x_max = (p_blob1->bb_x_max > p_blob2->bb_x_max) ? p_blob1->bb_x_max : p_blob2->bb_x_max;
+            int bb_y_min = (p_blob1->bb_y_min < p_blob2->bb_y_min) ? p_blob1->bb_y_min : p_blob2->bb_y_min;
+            int bb_y_max = (p_blob1->bb_y_max > p_blob2->bb_y_max) ? p_blob1->bb_y_max : p_blob2->bb_y_max;
+
+            // Store in blob
+            p_blob->bb_x_min = bb_x_min;
+            p_blob->bb_x_max = bb_x_max;
+            p_blob->bb_y_min = bb_y_min;
+            p_blob->bb_y_max = bb_y_max;
+            p_blob->num_pixels = p_blob1->num_pixels + p_blob2->num_pixels;
+            p_blob->cent_x = (bb_x_max + bb_x_min) / 2;
+            p_blob->cent_y = (bb_y_max + bb_y_min) / 2;
+            p_blob->color_index = META_COLOR_TABLE_INDEX;
+            p_blob->complete = true;
+            p_blob->valid = true;
+            detections.num_blobs++;
+            return i;
+        }
+    }
+
+    return -1;
+}
+
 static int find_largest_blob(uint32_t detect_color_index) {
     int largest_pixel_size = 0;
     int largest_blob_index = -1;
@@ -382,6 +429,33 @@ static void new_or_append_blob(int line_min, int line_max, int h, int image_widt
     }
 }
 
+static void add_meta_blobs_color_2_over_color_1(detections_t* p_det) {
+    blob_t* p_blob1 = NULL;
+    blob_t* p_blob2 = NULL;
+
+    for (uint32_t c1i=0; c1i < COLOR_DETECT_NUM_BLOBS_MAX; ++c1i) {
+        p_blob1 = &p_det->blobs[c1i];
+        if (!p_blob1->valid || !p_blob1->complete || p_blob1->color_index != detect_color_table[0]) {
+            continue;
+        }
+
+        for (uint32_t c2i = 0; c2i < COLOR_DETECT_NUM_BLOBS_MAX; ++c2i) {
+            p_blob2 = &p_det->blobs[c2i];
+            if (c2i == c1i || p_blob2->color_index != detect_color_table[1] || !p_blob2->valid || !p_blob2->complete) {
+                continue;
+            }
+            // Criteria 1: blob color 2 must be above blob color 1 (compare centroids)
+            if (p_blob2->cent_y > p_blob1->bb_y_max) {
+                // Criteria 2: blob color 2's cent_x must be within blob color 1's x-extent
+                if (p_blob2->cent_x > p_blob1->bb_x_min && p_blob2->cent_x < p_blob1->bb_x_max) {
+                    new_meta_blob(p_blob1, p_blob2);
+                    break;
+                }
+            }
+        }
+    }
+}
+
 static int detect_blobs(uint8_t* p_image, int width, int height, int detect_color_count, int min_detect_conf) {
 
     uint8_t *p_curr = p_image;
@@ -441,6 +515,12 @@ static int detect_blobs(uint8_t* p_image, int width, int height, int detect_colo
     // largest blob subsumes all overlapping blobs
     combine_blobs_from_largest(detect_color_count);
 
+    // update centroids for meta blob detection
+    update_centroids(&detections);
+
+    // detect meta blobs (synthetic blobs created from particular arrangements of colored blobs)
+    add_meta_blobs_color_2_over_color_1(&detections);
+
     return 0;
 }
 
@@ -450,7 +530,12 @@ void draw_blob(uint8_t* p_pix, int width, int height, blob_t* p_blob) {
     int line_width = p_blob->bb_x_max - p_blob->bb_x_min;
     int line_height = p_blob->bb_y_max - p_blob->bb_y_min;
 
-    uint8_t draw_color = draw_color_table[p_blob->color_index % 2];
+    uint8_t draw_color = draw_color_table[p_blob->color_index % MAX_DETECT_COLORS];
+
+    // override for meta blobs
+    if (p_blob->color_index == META_COLOR_TABLE_INDEX) {
+        draw_color = META_COLOR_TABLE_INDEX;
+    }
 
     // horizontal
     for (size_t i=0; i < line_width; ++i) {
@@ -462,6 +547,23 @@ void draw_blob(uint8_t* p_pix, int width, int height, blob_t* p_blob) {
     for (size_t i=0; i < line_height; ++i) {
         p_pix[top_line_start+(i*width)] = draw_color;
         p_pix[top_line_start+(i*width)+line_width] = draw_color;
+    }
+
+    // centroid
+    if (p_blob->cent_x < width-10 && p_blob->cent_x > 10 && p_blob->cent_y < height-10 && p_blob->cent_y > 10) {
+        p_pix[p_blob->cent_x + (width * p_blob->cent_y) - (2*width)] = BLACK_COLOR_TABLE_INDEX;
+        p_pix[p_blob->cent_x + (width * p_blob->cent_y) - width-1] = BLACK_COLOR_TABLE_INDEX;
+        p_pix[p_blob->cent_x + (width * p_blob->cent_y) - width] = META_COLOR_TABLE_INDEX;
+        p_pix[p_blob->cent_x + (width * p_blob->cent_y) - width+1] = BLACK_COLOR_TABLE_INDEX;
+        p_pix[p_blob->cent_x + (width * p_blob->cent_y) - 1] = META_COLOR_TABLE_INDEX;
+        p_pix[p_blob->cent_x + (width * p_blob->cent_y) - 2] = BLACK_COLOR_TABLE_INDEX;
+        p_pix[p_blob->cent_x + (width * p_blob->cent_y)] = META_COLOR_TABLE_INDEX;
+        p_pix[p_blob->cent_x + (width * p_blob->cent_y) + 1] = META_COLOR_TABLE_INDEX;
+        p_pix[p_blob->cent_x + (width * p_blob->cent_y) + 2] = BLACK_COLOR_TABLE_INDEX;
+        p_pix[p_blob->cent_x + (width * p_blob->cent_y) + width-1] = BLACK_COLOR_TABLE_INDEX;
+        p_pix[p_blob->cent_x + (width * p_blob->cent_y) + width] = META_COLOR_TABLE_INDEX;
+        p_pix[p_blob->cent_x + (width * p_blob->cent_y) + width+1] = BLACK_COLOR_TABLE_INDEX;
+        p_pix[p_blob->cent_x + (width * p_blob->cent_y) + (2*width)] = BLACK_COLOR_TABLE_INDEX;
     }
 }
 
