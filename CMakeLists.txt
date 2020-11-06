@@ -34,7 +34,9 @@ add_executable(hawkeye
         src/bitmap.c
         src/bitmap.h
         src/color_detect.c
-        src/color_detect.h)
+        src/color_detect.h
+        src/cc_detect.h
+        src/cc_detect.c)
 
 target_link_libraries(hawkeye jpeg v4l2 m)
 

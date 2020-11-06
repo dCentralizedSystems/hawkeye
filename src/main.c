@@ -11,6 +11,7 @@
 #include "v4l2uvc.h"
 #include "image_utils.h"
 #include "color_detect.h"
+#include "cc_detect.h"
 #include "bitmap.h"
 #include "utils.h"
 #include "daemon.h"
