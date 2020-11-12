@@ -30,6 +30,7 @@
 
 #include "v4l2uvc.h"
 #include "color_detect.h"
+#include "stripe_filter.h"
 #include "image_utils.h"
 
 #define OUTPUT_BUF_SIZE  4096
@@ -140,11 +141,16 @@ compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char *src, s
     struct jpeg_error_mgr jerr;
     JSAMPROW row_pointer[height];
     static unsigned char *frame_buffer = NULL;
+    static uint8_t* p_gray = NULL;
     int z;
     static int written;
 
     if (frame_buffer == NULL) {
         frame_buffer = calloc(width * 3 * height, 1);
+    }
+
+    if (p_gray == NULL) {
+        p_gray = calloc(width, 1);
     }
 
     cinfo.err = jpeg_std_error(&jerr);
@@ -167,6 +173,7 @@ compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char *src, s
     for (size_t line=0; line < height; ++line) {
 	
 	    row_pointer[line] = ptr;
+	    uint8_t* p_gray_ptr = p_gray;
 
         for(size_t x = 0; x < width; x++) {
             int r, g, b;
@@ -178,6 +185,9 @@ compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char *src, s
                 y = src[2] << 8;
             u = src[1] - 128;
             v = src[3] - 128;
+
+            // Use luminance value for gray image
+            *p_gray_ptr++ = y;
 
             r = (y + (359 * v)) >> 8;
             g = (y - (88 * u) - (183 * v)) >> 8;
@@ -193,6 +203,11 @@ compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char *src, s
             }
         }
     }
+
+    // Stripe filter
+    static sf_gradient_list_t grad_list;
+    memset(&grad_list, 0, sizeof(sf_gradient_list_t));
+    sf_find_gradients(&grad_list, p_gray, width);
 
     // perform color detection, if requested
     if (p_detect_params != NULL) {
