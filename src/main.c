@@ -164,7 +164,7 @@ void grab_frame(struct frame_buffer *fb, bool b_color_detect, detect_params_t *p
             case V4L2_PIX_FMT_YUYV:
                 if (b_color_detect) {
                     frame_size = compress_yuyv_to_jpeg(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width,
-                                                       fb->vd->height, fb->vd->jpeg_quality, p_detect_params);
+                                                       fb->vd->height, fb->vd->jpeg_quality, NULL);
                 } else {
                     frame_size = compress_yuyv_to_jpeg(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width,
                                                        fb->vd->height, fb->vd->jpeg_quality, NULL);
@@ -207,7 +207,7 @@ int main(int argc, char *argv[]) {
     colorDetectInit();
 
     init_settings(argc, argv);
-
+#if 1
     // detect color
     if (settings.detect_color_count > 2) {
         perror("Invalid number of detect colors");
@@ -249,8 +249,20 @@ int main(int argc, char *argv[]) {
         b_detect_color = false;
         color_detect_tolerance = 0.0f;
     }
-
     printf("%s: detect tolerance %f%% from %d\n", __func__, color_detect_tolerance, settings.detect_tolerance);
+
+    // set up color-detection parameters
+    detect_params_t detect_params;
+
+    build_detect_params(&detect_params,
+                             settings.detect_color_count,
+                             color_detect_tolerance,
+                             settings.min_detect_conf,
+                             settings.write_detect_image,
+                             settings.write_detect_image,
+                             settings.file_root,
+                             "color-detect-image.bmp") ;
+#endif
 
     // proflie fps
     if (settings.profile_fps != 0) {
@@ -264,18 +276,6 @@ int main(int argc, char *argv[]) {
     init_signals();
 
     fbs = init_frame_buffers(settings.video_device_count, settings.video_device_file);
-
-    // set up color-detection parameters
-    detect_params_t detect_params;
-
-    build_detect_params(&detect_params,
-                             settings.detect_color_count,
-                             color_detect_tolerance,
-                             settings.min_detect_conf,
-                             settings.write_detect_image,
-                             settings.write_detect_image,
-                             settings.file_root,
-                             "color-detect-image.bmp") ;
 
     while (is_running) {
         delta = gettime();

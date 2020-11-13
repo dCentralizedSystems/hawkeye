@@ -4,8 +4,20 @@
 #include <stddef.h>
 #include <string.h>
 #include <math.h>
+#include <stdio.h>
 
+#include "bitmap.h"
 #include "stripe_filter.h"
+
+typedef enum {
+    SF_THRESHOLD_STATE_ABOVE,
+    SF_THRESHOLD_STATE_BELOW
+} sf_threshold_state_t;
+
+typedef struct {
+    sf_threshold_state_t state;
+    uint8_t value;
+} sf_threshold_t;
 
 struct sf_filter;
 
@@ -16,6 +28,12 @@ struct sf_filter {
     uint8_t filter_elem[SF_FILTER_NUM_ELEM];
     sf_filter_fn_t filter_fn;
 };
+
+/* Grayscale image color table */
+static rgbColorTableEntry stripeFilterColorTable[256] = { 0 };
+
+/* Grayscale temp file name */
+static const char sf_gray_temp_file_name[] = "./sf_temp_file.bmp";
 
 /* Set filter calculation function */
 void sf_set_filter_function(struct sf_filter* p_filter, sf_filter_fn_t fn) {
@@ -52,12 +70,20 @@ uint8_t sf_boxcar_filter(struct sf_filter* p_filter, uint8_t input) {
 }
 
 static bool sf_add_gradient(sf_gradient_list_t* p_grad_list, sf_gradient_info_t* p_grad_info) {
-    if (!p_grad_list || !p_grad_info || p_grad_list->num_elem >= SF_MAX_GRADIENT_LIST_ELEM-1) {
+    if (!p_grad_list || !p_grad_info) {
+        return false;
+    }
+
+    if (p_grad_list->num_elem >= SF_MIN_STRIPE_WIDTH-1) {
         return false;
     }
 
     /* Copy to the next element */
-    memcpy(&(p_grad_list->gradient_list[++(p_grad_list->num_elem)]), p_grad_info, sizeof(sf_gradient_info_t));
+    p_grad_list->gradient_list[p_grad_list->num_elem].x_coord = p_grad_info->x_coord;
+    p_grad_list->gradient_list[p_grad_list->num_elem].y_coord = p_grad_info->y_coord;
+    p_grad_list->gradient_list[p_grad_list->num_elem].value = p_grad_info->value;
+    p_grad_list->gradient_list[p_grad_list->num_elem].type = p_grad_info->type;
+    ++p_grad_list->num_elem;
 
     return true;
 }
@@ -67,13 +93,16 @@ static bool sf_add_gradient(sf_gradient_list_t* p_grad_list, sf_gradient_info_t*
  * strong gradients using the adaptive threshold.  Return a list of
  * candidate gradient locations.
  */
-bool sf_find_gradients(sf_gradient_list_t* p_grad_list, uint8_t* p_gray, uint32_t len) {
+bool sf_find_gradients(sf_gradient_list_t* p_grad_list, uint8_t* p_gray, uint32_t len, uint32_t y_coord) {
     if (!p_grad_list || !p_gray || !len || len <= SF_FILTER_NUM_ELEM) {
         return false;
     }
 
     static struct sf_filter filter;
     memset(&filter, 0, sizeof(struct sf_filter));
+
+    /* No initial gradient detections */
+    p_grad_list->num_elem = 0;
 
     /* Start below threshold */
     sf_threshold_t curr_threshold;
@@ -89,7 +118,7 @@ bool sf_find_gradients(sf_gradient_list_t* p_grad_list, uint8_t* p_gray, uint32_
     }
 
     /* Start at filter-width from the left image edge, populate the filter */
-    size_t i=0;
+    size_t i;
     for (i=0; i < SF_FILTER_NUM_ELEM; ++i) {
         filter.filter_fn(&filter, UINT8_MAX >> 1);
     }
@@ -112,6 +141,7 @@ bool sf_find_gradients(sf_gradient_list_t* p_grad_list, uint8_t* p_gray, uint32_
                 grad_info.value = p_gray[i];
                 grad_info.type = SF_GRADIENT_POSITIVE;
                 grad_info.x_coord = i;
+                grad_info.y_coord = y_coord;
 
                 /* Add to gradient list */
                 sf_add_gradient(p_grad_list, &grad_info);
@@ -126,6 +156,7 @@ bool sf_find_gradients(sf_gradient_list_t* p_grad_list, uint8_t* p_gray, uint32_
                 grad_info.value = p_gray[i];
                 grad_info.type = SG_GRADIENT_NEGATIVE;
                 grad_info.x_coord = i;
+                grad_info.y_coord = y_coord;
 
                 /* Add to gradient list */
                 sf_add_gradient(p_grad_list, &grad_info);
@@ -137,57 +168,174 @@ bool sf_find_gradients(sf_gradient_list_t* p_grad_list, uint8_t* p_gray, uint32_
     return true;
 }
 
-static bool sf_compare_ratio(float a, float b, float expected_ratio, float tolerance) {
-    float ab_ratio = a / b;
-    float ab_sum_a_ratio = (a+b) / a;
+static bool sf_add_stripe(sf_stripe_list_t* p_stripe_list, sf_stripe_info_t* p_stripe_info) {
+    if (!p_stripe_list || !p_stripe_info) {
+        return false;
+    }
 
-    bool b_ab_ratio = fabs(ab_ratio - expected_ratio) < tolerance;
-    bool b_ab_sum_a_ratio = fabs(ab_sum_a_ratio - expected_ratio) < tolerance;
+    if (p_stripe_list->num_elem >= SF_MIN_STRIPE_WIDTH-1) {
+        return false;
+    }
 
-    return b_ab_ratio && b_ab_sum_a_ratio;
+    /* Copy to the next element */
+    p_stripe_list->stripe_list[p_stripe_list->num_elem].y_coord = p_stripe_info->y_coord;
+    p_stripe_list->stripe_list[p_stripe_list->num_elem].x_coord = p_stripe_info->x_coord;
+    p_stripe_list->stripe_list[p_stripe_list->num_elem].x_width = p_stripe_info->x_width;
+    ++p_stripe_list->num_elem;
+
+    return true;
 }
 
 /* Returns the x coordinate of the first feature that passes selection */
-uint32_t sf_process_gradient_list(sf_gradient_list_t* p_grad_list) {
-    if (!p_grad_list || p_grad_list->num_elem == 0) {
+bool sf_find_stripes(sf_gradient_list_t* p_grad_list, sf_stripe_list_t* p_stripe_list) {
+    if (!p_grad_list || p_grad_list->num_elem == 0 || !p_stripe_list) {
         return false;
     }
-    
-    uint32_t dist_from_prev[p_grad_list->num_elem];
+
+    uint32_t stripe_width = 0;
     uint32_t prev_x = 0;
     size_t i = 0;
-    bool b_found = false;
 
-    memset(dist_from_prev, 0, p_grad_list->num_elem * sizeof(uint32_t));
+    /* No initial stripes */
+    p_stripe_list->num_elem = 0;
 
     /* This assumes the gradient list is sorted by increasing x_coord, which it should be */
     for (i = 0; i < p_grad_list->num_elem; ++i) {
-        dist_from_prev[i] = p_grad_list->gradient_list[i].x_coord - prev_x;
+        stripe_width = p_grad_list->gradient_list[i].x_coord - prev_x;
         prev_x = p_grad_list->gradient_list[i].x_coord;
 
-        /* Check we aren't on the first feature */
-        if (i != 0) {
-            bool b_first_greater = (dist_from_prev[i-1] > dist_from_prev[i]) ? true : false;
-            float a = (b_first_greater) ? dist_from_prev[i-1] : dist_from_prev[i];
-            float b = (b_first_greater) ? dist_from_prev[i] : dist_from_prev[i-1];
+        sf_stripe_info_t stripe_info;
+        stripe_info.x_width = stripe_width;
+        stripe_info.x_coord = p_grad_list->gradient_list[i].x_coord;
+        stripe_info.y_coord = p_grad_list->gradient_list[i].y_coord;
+
+        sf_add_stripe(p_stripe_list, &stripe_info);
+    }
+
+    return true;
+}
+
+static bool sf_add_feature(sf_feature_list_t* p_feature_list, sf_feature_info_t* p_feature_info) {
+    if (!p_feature_list || !p_feature_info) {
+        return false;
+    }
+
+    if (p_feature_list->num_elem >= SF_MIN_STRIPE_WIDTH-1) {
+        return false;
+    }
+
+    /* Copy to the next element */
+    p_feature_list->feature_list[p_feature_list->num_elem].ratio_error = p_feature_info->ratio_error;
+    p_feature_list->feature_list[p_feature_list->num_elem].x_center = p_feature_info->x_center;
+    p_feature_list->feature_list[p_feature_list->num_elem].y_center = p_feature_info->y_center;
+    p_feature_list->feature_list[p_feature_list->num_elem].x_width = p_feature_info->x_width;
+    ++p_feature_list->num_elem;
+
+    return true;
+}
+
+bool sf_find_features(sf_stripe_list_t* p_stripe_list, sf_feature_list_t* p_feature_list) {
+    if (!p_stripe_list || !p_feature_list) {
+        return false;
+    }
+
+    /* We are iterating over pairs here, so start at 1 */
+    for (size_t i=1; i < p_stripe_list->num_elem; ++i) {
+        /* Consecutive stripes have to be larger than the minimum size */
+        if (p_stripe_list->stripe_list[i - 1].x_width > SF_MIN_STRIPE_WIDTH &&
+            p_stripe_list->stripe_list[i].x_width > SF_MIN_STRIPE_WIDTH) {
+            bool b_first_greater = (p_stripe_list->stripe_list[i - 1].x_width > p_stripe_list->stripe_list[i].x_width)
+                                   ? true : false;
+            float a = (b_first_greater) ? p_stripe_list->stripe_list[i - 1].x_width
+                                        : p_stripe_list->stripe_list[i].x_width;
+            float b = (b_first_greater) ? p_stripe_list->stripe_list[i].x_width : p_stripe_list->stripe_list[i -
+                                                                                                             1].x_width;
+
+            float ab_ratio = a / b;
+            float ab_sum_a_ratio = (a + b) / a;
+
+            float ab_ratio_err = fabs(ab_ratio - SF_EXPECTED_RATIO);
+            float ab_sum_a_ratio_err = fabs(ab_sum_a_ratio - SF_EXPECTED_RATIO);
+
+            uint32_t x_width = p_stripe_list->stripe_list[i - 1].x_width + p_stripe_list->stripe_list[i].x_width;
+            uint32_t x_center = (p_stripe_list->stripe_list[i - 1].x_width + p_stripe_list->stripe_list[i].x_width) / 2;
 
             /* Compare to target ratio */
-            if (sf_compare_ratio(a, b, SF_EXPECTED_RATIO, SF_RATIO_ALLOWABLE_ERROR)) {
-                b_found = true;
-                break;
+            if (ab_ratio_err < SF_RATIO_ALLOWABLE_ERROR && ab_sum_a_ratio_err < SF_RATIO_ALLOWABLE_ERROR) {
+                sf_feature_info_t feature_info;
+                feature_info.ratio_error = (ab_ratio + ab_sum_a_ratio_err) / 2.0f;
+                feature_info.x_width = x_width;
+                feature_info.x_center = x_center;
+                feature_info.y_center = p_stripe_list->stripe_list[i].y_coord;
+
+                sf_add_feature(p_feature_list, &feature_info);
             }
         }
     }
 
-    if (b_found && i >= 2) {
-        /* Two-feature region starts at p_grad_list->gradient_list[i-2].x_coord and is dist_from_prev[i-1] +
-         * dist_from_prev[i] in length.
-         */
-        return (p_grad_list->gradient_list[i-2].x_coord + dist_from_prev[i-1] + dist_from_prev[i]) / 2;
+    return true;
+}
+
+static void sf_annotate_features_in_image(int width, int height, uint8_t* p_image_data, uint32_t image_data_len, sf_feature_list_t* p_feature_list) {
+    if (!p_image_data || !p_feature_list || p_feature_list->num_elem == 0 || width == 0 || height == 0 || image_data_len == 0) {
+        return;
     }
 
-    return 0;
- }
+    printf("SF: annotating %u features\n", p_feature_list->num_elem);
+
+    for (size_t i=0; i < p_feature_list->num_elem; ++i) {
+        uint32_t x_center = p_feature_list->feature_list[i].x_center;
+        uint32_t y_center = p_feature_list->feature_list[i].y_center;
+
+        /* Write inverted pixel at feature center */
+        uint8_t pixel_offset = (y_center * width) + x_center;
+        p_image_data[pixel_offset] = UINT8_MAX - p_image_data[pixel_offset]; // center
+        if (y_center > 0)
+            p_image_data[pixel_offset-width] = UINT8_MAX - p_image_data[pixel_offset-width];
+        if (y_center < height-1)
+            p_image_data[pixel_offset+width] = UINT8_MAX - p_image_data[pixel_offset+width];
+        if (x_center < width-1)
+            p_image_data[pixel_offset+1] = UINT8_MAX - p_image_data[pixel_offset+1];
+        if (x_center > 0)
+            p_image_data[pixel_offset-1] = UINT8_MAX - p_image_data[pixel_offset-1];
+    }
+}
+
+void sf_write_image(const char *p_filename, int width, int height, uint8_t* p_image_data, uint32_t image_data_len,
+                    sf_feature_list_t *p_feat_list) {
+    if (!p_filename || !p_image_data || image_data_len == 0) {
+        return;
+    }
+
+    /* Initialize if not already */
+    if (stripeFilterColorTable[1].blue == 0) {
+        // build color-detect color-table
+        for (uint32_t i = 0; i < 256; ++i) {
+            stripeFilterColorTable[i].blue = i;
+            stripeFilterColorTable[i].green = i;
+            stripeFilterColorTable[i].red = i;
+            stripeFilterColorTable[1].reserved = 0;
+        }
+    }
+
+    sf_annotate_features_in_image(width, height, p_image_data, image_data_len, p_feat_list);
+
+    FILE *p_file = fopen(sf_gray_temp_file_name, "w+");
+
+    if (p_file != NULL) {
+
+        // write image
+        bmWriteBitmapWithColorTable(p_file, width, height, stripeFilterColorTable, sizeof(stripeFilterColorTable),
+                                    p_image_data, image_data_len);
+
+        fflush(p_file);
+        fclose(p_file);
+
+        /* Now that write is complete, rename the file */
+        rename(sf_gray_temp_file_name, p_filename);
+    }
+}
+
 
 
 
