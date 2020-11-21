@@ -178,7 +178,7 @@ compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char *src, s
 
     /* Feature detection lists */
     sf_gradient_list_t grad_list = { 0 };
-    sf_stripe_list_t stripe_list = { 0 };
+    sf_gradient_cluster_list_t cluster_list = { 0 };
     sf_feature_list_t feature_list = { 0 };
 
     z = 0;
@@ -217,11 +217,13 @@ compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char *src, s
 
         // perform per-line stripe detection
         sf_find_gradients(&grad_list, &p_gray[0], width, line);
-        sf_find_stripes(&grad_list, &stripe_list);
-        sf_find_features(&stripe_list, &feature_list);
     }
 
-    sf_write_image("./sf_image.bmp", width, height, p_gray_image, width * height, &feature_list);
+    /* Cluster gradients and extract features from gradient clusters */
+    sf_cluster_gradients(&grad_list, &cluster_list);
+    sf_find_features(&cluster_list, &feature_list);
+
+    sf_write_image("./sf_image.bmp", width, height, p_gray_image, width * height, &grad_list, &cluster_list, &feature_list);
 
 #if 0
     // perform color detection, if requested

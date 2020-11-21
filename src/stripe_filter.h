@@ -8,19 +8,31 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define SF_MAX_FEATURES                             (1000)
-#define SF_FILTER_NUM_ELEM                          (4)
-#define SF_GRADIENT_MIN_CHANGE                      (30)
+#define SF_MAX_GRADIENTS                            (100000)
+#define SF_MAX_GRADIENT_CLUSTERS                    (1000)
+#define SF_MAX_FEATURES                             (100)
+#define SF_FILTER_NUM_ELEM                          (5)
+#define SF_FILTER_GRAD_THRESHOLD                    (0.35f)
 #define SF_MIN_STRIPE_WIDTH                         (10)
+#define SF_MAX_STRIPE_WIDTH                         (150)
+
+/* Gradient clustering parameters */
+#define SF_CLUSTER_PERCENT_X                        (0.02f)
+#define SF_CLUSTER_PERCENT_Y                        (0.3f)
+#define SF_CLUSTER_MIN_GRADIENT_COUNT               (5)
 
 /* Expected ratio metrics */
-#define SF_EXPECTED_RATIO                           (1.618f)
-#define SF_RATIO_ALLOWABLE_ERROR                    (0.1f)
+#define SF_EXPECTED_RATIO                           (1.42f)
+#define SF_RATIO_ALLOWABLE_ERROR                    (0.4f)
+
+/* Nearest neighbor box parameters for clusters->features */
+#define SF_NEAREST_NEIGHBOR_OFF_X                   (SF_MIN_STRIPE_WIDTH)
+#define SF_NEAREST_NEIGHBOR_DELTA_X                 (SF_MAX_STRIPE_WIDTH)
+#define SF_NEAREST_NEIGHBOR_DELTA_Y                 (5)
 
 typedef enum {
-    SF_GRADIENT_NONE,
-    SF_GRADIENT_POSITIVE,
-    SG_GRADIENT_NEGATIVE
+    SF_GRADIENT_NEGATIVE = 0,
+    SF_GRADIENT_POSITIVE
 } sf_gradient_t;
 
 typedef struct {
@@ -32,21 +44,26 @@ typedef struct {
 
 typedef struct {
     int num_elem;
-    sf_gradient_info_t gradient_list[SF_MAX_FEATURES];
+    sf_gradient_info_t gradient_list[SF_MAX_GRADIENTS];
 } sf_gradient_list_t;
 
 typedef struct {
-    uint32_t x_coord;
-    uint32_t x_width;
-    uint32_t y_coord;
-} sf_stripe_info_t;
+    uint32_t x_cent;
+    uint32_t y_cent;
+    uint32_t count;
+    uint32_t x_sum;
+    uint32_t y_sum;
+    sf_gradient_t type;
+} sf_gradient_cluster_info_t;
 
 typedef struct {
     int num_elem;
-    sf_stripe_info_t stripe_list[SF_MAX_FEATURES];
-} sf_stripe_list_t;
+    sf_gradient_cluster_info_t cluster_list[SF_MAX_GRADIENT_CLUSTERS];
+} sf_gradient_cluster_list_t;
 
 typedef struct {
+    uint32_t x_min;
+    uint32_t x_max;
     uint32_t x_center;
     uint32_t y_center;
     uint32_t x_width;
@@ -69,24 +86,21 @@ typedef struct {
 bool sf_find_gradients(sf_gradient_list_t* p_grad_list, uint8_t* p_gray, uint32_t len, uint32_t y_coord);
 
 /**
- * @func sf_find_stripes
- * @param p_grad_list The gradient list returned from a successful invocation of @sf_find_gradients
- * @param p_stripe_list The list of detected stripes
- * @return True if the stripe detection was performed successfully (regardless of the nubmer of detections),
- * false if there was a problem with the arguments.
- * features were detected.
+ * @func sf_cluster_gradients
+ * @param p_grad_list The gradients to cluster
+ * @param p_cluster_list The list of clusters to check against
+ * @return True if clustering was performed successfully, false otherwise
  */
-bool sf_find_stripes(sf_gradient_list_t* p_grad_list, sf_stripe_list_t* p_stripe_list);
+bool sf_cluster_gradients(sf_gradient_list_t* p_grad_list, sf_gradient_cluster_list_t* p_cluster_list);
 
 /**
  * @func sf_find_features
- * @param p_stripe_list The list of stripes detected via @sf_find_stripes
+ * @param p_cluster_list The list of gradient clusters detected via @sf_cluster_gradients
  * @param p_feature_list The output list of detetcted features
  * @return True if the feature detection was successful, false if the input parameters were
  * invalid.
  */
-bool sf_find_features(sf_stripe_list_t* p_stripe_list, sf_feature_list_t* p_feature_list);
-
+bool sf_find_features(sf_gradient_cluster_list_t* p_cluster_list, sf_feature_list_t* p_feature_list);
 
 /**
  * @func sf_write_image
@@ -95,9 +109,11 @@ bool sf_find_features(sf_stripe_list_t* p_stripe_list, sf_feature_list_t* p_feat
  * @param height Height of the image in pixels
  * @param p_image_data pointer to start of grayscale image data
  * @param image_data_len number of bytes in image
+ * @param p_grad_list List of gradients to annotate in the image
+ * @param p_cluster_list List of gradient clusters to annotate in the image
  * @param p_feature_list List of features to annotate in the image
  */
 void sf_write_image(const char *p_filename, int width, int height, uint8_t *p_image_data, uint32_t image_data_len,
-                    sf_feature_list_t *p_feat_list);
+                    sf_gradient_list_t* p_grad_list, sf_gradient_cluster_list_t * p_cluster_list, sf_feature_list_t *p_feat_list);
 
 #endif //_STRIPE_FILTER_H
