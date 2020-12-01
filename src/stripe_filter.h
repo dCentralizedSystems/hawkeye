@@ -11,24 +11,24 @@
 #define SF_MAX_GRADIENTS                            (100000)
 #define SF_MAX_GRADIENT_CLUSTERS                    (1000)
 #define SF_MAX_FEATURES                             (100)
-#define SF_FILTER_NUM_ELEM                          (5)
-#define SF_FILTER_GRAD_THRESHOLD                    (0.35f)
+#define SF_FILTER_NUM_ELEM                          (3)
+#define SF_FILTER_GRAD_THRESHOLD                    (0.30f)
 #define SF_MIN_STRIPE_WIDTH                         (10)
-#define SF_MAX_STRIPE_WIDTH                         (150)
+#define SF_MAX_STRIPE_WIDTH                         (100)
 
 /* Gradient clustering parameters */
 #define SF_CLUSTER_PERCENT_X                        (0.02f)
 #define SF_CLUSTER_PERCENT_Y                        (0.3f)
-#define SF_CLUSTER_MIN_GRADIENT_COUNT               (5)
+#define SF_CLUSTER_MIN_GRADIENT_COUNT               (10)
 
 /* Expected ratio metrics */
-#define SF_EXPECTED_RATIO                           (1.42f)
-#define SF_RATIO_ALLOWABLE_ERROR                    (0.4f)
+#define SF_EXPECTED_RATIO                           (1.618f)
+#define SF_RATIO_ALLOWABLE_ERROR                    (0.15f)
 
 /* Nearest neighbor box parameters for clusters->features */
 #define SF_NEAREST_NEIGHBOR_OFF_X                   (SF_MIN_STRIPE_WIDTH)
 #define SF_NEAREST_NEIGHBOR_DELTA_X                 (SF_MAX_STRIPE_WIDTH)
-#define SF_NEAREST_NEIGHBOR_DELTA_Y                 (5)
+#define SF_NEAREST_NEIGHBOR_DELTA_Y                 (7)
 
 typedef enum {
     SF_GRADIENT_NEGATIVE = 0,

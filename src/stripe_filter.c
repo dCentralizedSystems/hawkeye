@@ -483,9 +483,9 @@ void sf_write_image(const char *p_filename, int width, int height, uint8_t* p_im
         stripeFilterColorTable[SF_GRADIENT_CLUSTER_ANNOTATION_COLOR].reserved = 0;
 
         /* Feature annotation */
-        stripeFilterColorTable[SF_FEATURE_ANNOTATION_COLOR].blue = 120;
-        stripeFilterColorTable[SF_FEATURE_ANNOTATION_COLOR].green = 40;
-        stripeFilterColorTable[SF_FEATURE_ANNOTATION_COLOR].red = 200;
+        stripeFilterColorTable[SF_FEATURE_ANNOTATION_COLOR].blue = 240;
+        stripeFilterColorTable[SF_FEATURE_ANNOTATION_COLOR].green = 240;
+        stripeFilterColorTable[SF_FEATURE_ANNOTATION_COLOR].red = 20;
         stripeFilterColorTable[SF_FEATURE_ANNOTATION_COLOR].reserved = 0;
     }
 
