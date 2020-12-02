@@ -12,11 +12,8 @@
 #define DEFAULT_FILE_ROOT "."
 #define DEFAULT_BASE_FILE_NAME "image"
 #define DEFAULT_PROFILE_FPS "0"
-#define DEFAULT_DETECT_COLOR1 "#5A6429"
-#define DEFAULT_DETECT_COLOR2 "#809021"
-#define DEFAULT_DETECT_TOLERANCE "25"
-#define DEFAULT_MIN_DETECT_CONF "4"
 #define DEFAULT_WRITE_DETECT_IMAGE "0"
+#define DEFAULT_ENABLE_STRIPE_DETECT "0"
 
 #define DETECT_COLOR_LENGTH (7)
 
@@ -34,12 +31,8 @@ struct settings {
 	char *video_device_file;
 	int profile_fps;
 
-	// Color-detect parameters
-	char *detect_color1;
-	char *detect_color2;
-	int detect_color_count;
-	int detect_tolerance;
-	int min_detect_conf;
+	// Stripe-detect parameters
+	int enable_stripe_detect;
 	int write_detect_image;
 };
 

@@ -143,7 +143,7 @@ bool parseDetectColor(const char *p_detect_color_string, uint32_t detect_color_l
     return true;
 }
 
-void grab_frame(struct frame_buffer *fb, bool b_color_detect, detect_params_t *p_detect_params) {
+void grab_frame(struct frame_buffer *fb) {
     uint8_t *buf = NULL;
     uint32_t buf_size = 0;
 
@@ -162,13 +162,10 @@ void grab_frame(struct frame_buffer *fb, bool b_color_detect, detect_params_t *p
         /* Process by input format type (output type is always JPEG) */
         switch (fb->vd->format_in) {
             case V4L2_PIX_FMT_YUYV:
-                if (b_color_detect) {
                     frame_size = compress_yuyv_to_jpeg(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width,
-                                                       fb->vd->height, fb->vd->jpeg_quality, p_detect_params);
-                } else {
-                    frame_size = compress_yuyv_to_jpeg(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width,
-                                                       fb->vd->height, fb->vd->jpeg_quality, NULL);
-                }
+                                                       fb->vd->height, fb->vd->jpeg_quality,
+                                                       (settings.enable_stripe_detect == 0) ? false : true,
+                                                       (settings.write_detect_image == 0) ? false : true);
                 break;
             case V4L2_PIX_FMT_Z16:
                 frame_size = compress_z16_to_jpeg(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width,
@@ -199,58 +196,12 @@ int main(int argc, char *argv[]) {
     static double fps_avg = 0.0f;
     double fps;
 
-    bool b_detect_color = false;
-
     bool calc_fps = false;
 
     bmInit();
     colorDetectInit();
 
     init_settings(argc, argv);
-
-    // detect color
-    if (settings.detect_color_count > 2) {
-        perror("Invalid number of detect colors");
-        return -1;
-    }
-
-    if (settings.detect_color_count >= 1) {
-        detect_color_t color1;
-        b_detect_color |= parseDetectColor(settings.detect_color1, strlen(settings.detect_color1), &color1);
-        b_detect_color &= calcNorms(&color1);
-
-        if (b_detect_color) {
-            setDetectColor(&color1, 0);
-        }
-    }
-
-    if (settings.detect_color_count == 2) {
-        detect_color_t color2;
-
-        b_detect_color &= parseDetectColor(settings.detect_color2, strlen(settings.detect_color2), &color2);
-        b_detect_color &= calcNorms(&color2);
-
-        if (b_detect_color) {
-            setDetectColor(&color2, 1);
-        }
-    }
-
-    float color_detect_tolerance = ((float)settings.detect_tolerance) / 100.0f;
-
-    // bound color-detect tolerance percentage
-    if (color_detect_tolerance < 0.05f) {
-        color_detect_tolerance = 0.05f;
-    } else if (color_detect_tolerance > 0.90f) {
-        color_detect_tolerance = 0.90f;
-    }
-
-    if (settings.detect_tolerance == 0) {
-        // this disabled color detection
-        b_detect_color = false;
-        color_detect_tolerance = 0.0f;
-    }
-
-    printf("%s: detect tolerance %f%% from %d\n", __func__, color_detect_tolerance, settings.detect_tolerance);
 
     // proflie fps
     if (settings.profile_fps != 0) {
@@ -265,23 +216,11 @@ int main(int argc, char *argv[]) {
 
     fbs = init_frame_buffers(settings.video_device_count, settings.video_device_file);
 
-    // set up color-detection parameters
-    detect_params_t detect_params;
-
-    build_detect_params(&detect_params,
-                             settings.detect_color_count,
-                             color_detect_tolerance,
-                             settings.min_detect_conf,
-                             settings.write_detect_image,
-                             settings.write_detect_image,
-                             settings.file_root,
-                             "color-detect-image.bmp") ;
-
     while (is_running) {
         delta = gettime();
         for (i = 0; i < fbs->count; i++) {
             fb = &fbs->buffers[i];
-            grab_frame(fb, b_detect_color, &detect_params);
+            grab_frame(fb);
         }
 
         if (calc_fps) {
