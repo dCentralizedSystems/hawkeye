@@ -162,13 +162,8 @@ void grab_frame(struct frame_buffer *fb, bool b_color_detect, detect_params_t *p
         /* Process by input format type (output type is always JPEG) */
         switch (fb->vd->format_in) {
             case V4L2_PIX_FMT_YUYV:
-                if (b_color_detect) {
                     frame_size = compress_yuyv_to_jpeg(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width,
-                                                       fb->vd->height, fb->vd->jpeg_quality, NULL);
-                } else {
-                    frame_size = compress_yuyv_to_jpeg(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width,
-                                                       fb->vd->height, fb->vd->jpeg_quality, NULL);
-                }
+                                                       fb->vd->height, fb->vd->jpeg_quality, settings.write_detect_image);
                 break;
             case V4L2_PIX_FMT_Z16:
                 frame_size = compress_z16_to_jpeg(buf, buf_size, fb->vd->framebuffer, frame_size, fb->vd->width,

@@ -136,7 +136,7 @@ Return Value: the buffer will contain the compressed data
 ******************************************************************************/
 size_t
 compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char *src, size_t src_size, unsigned int width,
-                      unsigned int height, int quality, detect_params_t *p_detect_params) {
+                      unsigned int height, int quality, bool b_write_detect_image) {
     struct jpeg_compress_struct cinfo;
     struct jpeg_error_mgr jerr;
     JSAMPROW row_pointer[height];
@@ -215,7 +215,7 @@ compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char *src, s
             }
         }
 
-        // perform per-line stripe detection
+        // perform per-line gradient detection
         sf_find_gradients(&grad_list, &p_gray[0], width, line);
     }
 
@@ -223,22 +223,15 @@ compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char *src, s
     sf_cluster_gradients(&grad_list, &cluster_list);
     sf_find_features(&cluster_list, &feature_list);
 
-    sf_write_image("./sf_image.bmp", width, height, p_gray_image, width * height, &grad_list, &cluster_list, &feature_list);
-
-#if 0
-    // perform color detection, if requested
-    if (p_detect_params != NULL) {
-        static char blob_string[1024];
-        memset(blob_string, 0, 1024);
-
-        const char* p_rgb_blob_string = rgb_color_detection(frame_buffer, width, height, p_detect_params);
-        /* Detect blobs */
-        if (p_rgb_blob_string != NULL) {
-            /* Write blob data string into JPEG_COM section in image */
-            jpeg_write_marker(&cinfo, JPEG_COM, (unsigned char *) p_rgb_blob_string, strlen(p_rgb_blob_string));
-        }
+    if (b_write_detect_image) {
+        sf_write_image("./sf_image.bmp", width, height, p_gray_image, width * height, &grad_list, &cluster_list,
+                       &feature_list);
     }
-#endif
+
+    /* Write feature list to JPEG_COM section of image */
+    const char* p_feature_string = sf_get_feature_list_data_string(&feature_list);
+
+    jpeg_write_marker(&cinfo, JPEG_COM, (const JOCTET*)p_feature_string, strlen(p_feature_string));
 
     jpeg_write_scanlines(&cinfo, row_pointer, height);
 

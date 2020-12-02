@@ -33,16 +33,16 @@ void print_usage() {
     fprintf(stdout, "Usage: %s [-d] [-P pidfile]\n", program_name);
     fprintf(stdout, "       [-l logfile] [-u user] [-g group] [-F fps] [-D video-device] [-W width]\n");
     fprintf(stdout, "       [-H height] [-j jpeg-quality] [-L log-level] [-f format] [-A user:pass]\n");
-    fprintf(stdout, "       [-r file-root] [-b base_file_name] [-m mm-scale] [-P profile-fps] [-B #RRGGBB]  [-B #RRGGBB] [-M (0-10000)]\n");
-    fprintf(stdout, "       [-T detect-tolerance-percent]\n");
+    fprintf(stdout, "       [-r file-root] [-b base_file_name] [-m mm-scale] [-P profile-fps]\n");
+    fprintf(stdout, "       [-T detect-tolerance-percent] [-Q write-detect-image]\n");
     fprintf(stdout, "\n");
     fprintf(stdout, "Usage: %s [--daemon]\n", program_name);
     fprintf(stdout, "       [--pid=path] [--log=path] [--user=user] [--group=group]\n");
     fprintf(stdout, "       [--fps=fps][--device=video-device] [--width=width] [--height=height]\n");
     fprintf(stdout, "       [--quality=quality] [--log-level=log-level] [--format=format]\n");
     fprintf(stdout, "       [--file-root=file-root] [--base-file-name=base-file-name]\n");
-    fprintf(stdout, "       [--mm-scale=mm_scale] [--profile-fps=profile-fps] [--detect-color1=#RRGGBB] [--detect-color2=#RRGGBB] \n");
-    fprintf(stdout, "       [--detect-tolerance=detect-tolerance-percent] [--min-detect-conf=[min blob pixels in 10000ths of total image pixels]\n");
+    fprintf(stdout, "       [--mm-scale=mm_scale] [--profile-fps=profile-fps]\n");
+    fprintf(stdout, "       [--write-detect-image]\n");
 
     fprintf(stdout, "Usage: %s [-h]\n", program_name);
     fprintf(stdout, "Usage: %s [-v]\n", program_name);
@@ -63,10 +63,6 @@ void init_settings(int argc, char *argv[]) {
     add_config_item(conf, 'd', "daemon", CONFIG_BOOL, &settings.run_in_background, "0");
     add_config_item(conf, 'F', "fps", CONFIG_INT, &settings.fps, DEFAULT_FPS);
     add_config_item(conf, 'P', "profile-fps", CONFIG_INT, &settings.profile_fps, DEFAULT_PROFILE_FPS);
-    add_config_item(conf, 'B', "detect-color1", CONFIG_STR, &settings.detect_color1, DEFAULT_DETECT_COLOR1);
-    add_config_item(conf, 'C', "detect-color2", CONFIG_STR, &settings.detect_color2, DEFAULT_DETECT_COLOR2);
-    add_config_item(conf, 'T', "detect-tolerance", CONFIG_INT, &settings.detect_tolerance, DEFAULT_DETECT_TOLERANCE);
-    add_config_item(conf, 'M', "min-detect-conf", CONFIG_INT, &settings.min_detect_conf, DEFAULT_MIN_DETECT_CONF);
     add_config_item(conf, 'Q', "write-detect-image", CONFIG_BOOL, &settings.write_detect_image, "0");
     add_config_item(conf, 'W', "width", CONFIG_INT, &settings.width, DEFAULT_WIDTH);
     add_config_item(conf, 'H', "height", CONFIG_INT, &settings.height, DEFAULT_HEIGHT);
@@ -94,26 +90,6 @@ void init_settings(int argc, char *argv[]) {
     }
     if (strcmp(v4l2_format, "z16") == 0) {
         settings.v4l2_format = V4L2_PIX_FMT_Z16;
-    }
-
-    // Parse detect colors
-    if (settings.detect_color1 == NULL || strlen(settings.detect_color1) != DETECT_COLOR_LENGTH) {
-        settings.detect_color1 = DEFAULT_DETECT_COLOR1;
-        settings.detect_color_count = 1;
-    }
-    if (settings.detect_color2 != NULL) {
-        if (strlen(settings.detect_color2) == DETECT_COLOR_LENGTH) {
-            settings.detect_color_count = 2;
-        }
-    }
-
-    // Parse min detect confidence
-    if (settings.min_detect_conf > 10000) {
-        settings.min_detect_conf = 10000;
-    }
-
-    if (settings.min_detect_conf <=0) {
-        settings.min_detect_conf = 4;
     }
 
     // Parse video devices

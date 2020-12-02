@@ -13,6 +13,7 @@
 #define SF_GRADIENT_NEGATIVE_ANNOTATION_COLOR   (1)
 #define SF_GRADIENT_CLUSTER_ANNOTATION_COLOR    (2)
 #define SF_FEATURE_ANNOTATION_COLOR             (3)
+#define SF_FEATURE_CENTER_ANNOTATION_COLOR      (4)
 
 typedef enum {
     SF_THRESHOLD_STATE_ABOVE,
@@ -444,6 +445,9 @@ static void sf_annotate_features_in_image(int width, int height, uint8_t* p_imag
         for (size_t i=start_offset; i < start_offset + x_width; ++i) {
             p_image_data[i] = SF_FEATURE_ANNOTATION_COLOR;
         }
+
+        /* Mark feature center */
+        p_image_data[start_offset + (x_width / 2)] = SF_FEATURE_CENTER_ANNOTATION_COLOR;
     }
 }
 
@@ -478,15 +482,21 @@ void sf_write_image(const char *p_filename, int width, int height, uint8_t* p_im
 
         /* Stripe annotation */
         stripeFilterColorTable[SF_GRADIENT_CLUSTER_ANNOTATION_COLOR].blue = 240;
-        stripeFilterColorTable[SF_GRADIENT_CLUSTER_ANNOTATION_COLOR].green = 200;
-        stripeFilterColorTable[SF_GRADIENT_CLUSTER_ANNOTATION_COLOR].red = 60;
+        stripeFilterColorTable[SF_GRADIENT_CLUSTER_ANNOTATION_COLOR].green = 80;
+        stripeFilterColorTable[SF_GRADIENT_CLUSTER_ANNOTATION_COLOR].red = 120;
         stripeFilterColorTable[SF_GRADIENT_CLUSTER_ANNOTATION_COLOR].reserved = 0;
 
         /* Feature annotation */
         stripeFilterColorTable[SF_FEATURE_ANNOTATION_COLOR].blue = 240;
         stripeFilterColorTable[SF_FEATURE_ANNOTATION_COLOR].green = 240;
-        stripeFilterColorTable[SF_FEATURE_ANNOTATION_COLOR].red = 20;
+        stripeFilterColorTable[SF_FEATURE_ANNOTATION_COLOR].red = 60;
         stripeFilterColorTable[SF_FEATURE_ANNOTATION_COLOR].reserved = 0;
+
+        /* Feature center annotation */
+        stripeFilterColorTable[SF_FEATURE_CENTER_ANNOTATION_COLOR].blue = 0;
+        stripeFilterColorTable[SF_FEATURE_CENTER_ANNOTATION_COLOR].green = 0;
+        stripeFilterColorTable[SF_FEATURE_CENTER_ANNOTATION_COLOR].red = 0;
+        stripeFilterColorTable[SF_FEATURE_CENTER_ANNOTATION_COLOR].reserved = 0;
     }
 
     sf_annotate_gradients_in_image(width, height, p_image_data, image_data_len, p_grad_list);
@@ -507,6 +517,58 @@ void sf_write_image(const char *p_filename, int width, int height, uint8_t* p_im
         /* Now that write is complete, rename the file */
         rename(sf_gray_temp_file_name, p_filename);
     }
+}
+
+const char* sf_get_feature_list_data_string(sf_feature_list_t* p_feature_list) {
+    static char feature_list_string[FEATURE_LIST_STRING_MAX_LENGTH];
+
+    memset(feature_list_string, 0, FEATURE_LIST_STRING_MAX_LENGTH);
+
+    if (!p_feature_list) {
+        return NULL;
+    }
+
+    // only write complete blobs, check if there are any to write
+    int num_features = p_feature_list->num_elem;
+
+    if (num_features == 0) {
+        return NULL;
+    }
+
+    // keep track of remaining space in first image line
+    int feature_list_string_remaining = FEATURE_LIST_STRING_MAX_LENGTH;
+
+    // write num blobs first
+    int num_blob_string_len = snprintf(feature_list_string, feature_list_string_remaining, "%d", num_features);
+
+    feature_list_string_remaining -= num_blob_string_len;
+
+    // add each complete and valid blob to string
+    for (size_t i = 0; i < num_features; ++i) {
+        sf_feature_info_t* p_feat = &p_feature_list->feature_list[i];
+
+        char feat_string[128] = { 0 }; // 10 characters per integer plus 6 commas plus null terminator
+
+        int feat_string_len = snprintf(feat_string, 128, ",%d,%d,%d,%d,%d,%d,%d", (uint32_t)i, p_feat->x_min, p_feat->x_max,
+                                       p_feat->y_center, p_feat->y_center, 1, p_feat->x_max - p_feat->x_min);
+
+        // ensure room to append in p_line_buf
+        if (feature_list_string_remaining < feat_string_len) {
+            break;
+        }
+
+        // write blob string
+        strcat(feature_list_string, feat_string);
+
+        feature_list_string_remaining -= feat_string_len;
+    }
+
+    if (feature_list_string_remaining > 0) {
+        // append a line-feed
+        strcat(feature_list_string, "\n");
+    }
+
+    return feature_list_string;
 }
 
 
