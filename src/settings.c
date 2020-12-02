@@ -35,6 +35,7 @@ void print_usage() {
     fprintf(stdout, "       [-H height] [-j jpeg-quality] [-L log-level] [-f format] [-A user:pass]\n");
     fprintf(stdout, "       [-r file-root] [-b base_file_name] [-m mm-scale] [-P profile-fps]\n");
     fprintf(stdout, "       [-T detect-tolerance-percent] [-Q write-detect-image]\n");
+    fprintf(stdout, "       [-S enable-stripe-detect]\n");
     fprintf(stdout, "\n");
     fprintf(stdout, "Usage: %s [--daemon]\n", program_name);
     fprintf(stdout, "       [--pid=path] [--log=path] [--user=user] [--group=group]\n");
@@ -42,7 +43,7 @@ void print_usage() {
     fprintf(stdout, "       [--quality=quality] [--log-level=log-level] [--format=format]\n");
     fprintf(stdout, "       [--file-root=file-root] [--base-file-name=base-file-name]\n");
     fprintf(stdout, "       [--mm-scale=mm_scale] [--profile-fps=profile-fps]\n");
-    fprintf(stdout, "       [--write-detect-image]\n");
+    fprintf(stdout, "       [--write-detect-image] [--enable-stripe-detect]\n");
 
     fprintf(stdout, "Usage: %s [-h]\n", program_name);
     fprintf(stdout, "Usage: %s [-v]\n", program_name);
@@ -64,6 +65,7 @@ void init_settings(int argc, char *argv[]) {
     add_config_item(conf, 'F', "fps", CONFIG_INT, &settings.fps, DEFAULT_FPS);
     add_config_item(conf, 'P', "profile-fps", CONFIG_INT, &settings.profile_fps, DEFAULT_PROFILE_FPS);
     add_config_item(conf, 'Q', "write-detect-image", CONFIG_BOOL, &settings.write_detect_image, "0");
+    add_config_item(conf, 'S', "enable-stripe-detect", CONFIG_BOOL, &settings.enable_stripe_detect, DEFAULT_ENABLE_STRIPE_DETECT);
     add_config_item(conf, 'W', "width", CONFIG_INT, &settings.width, DEFAULT_WIDTH);
     add_config_item(conf, 'H', "height", CONFIG_INT, &settings.height, DEFAULT_HEIGHT);
     add_config_item(conf, 'm', "mm-scale", CONFIG_INT, &settings.mm_scale, DEFAULT_MM_SCALE);

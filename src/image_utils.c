@@ -136,7 +136,7 @@ Return Value: the buffer will contain the compressed data
 ******************************************************************************/
 size_t
 compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char *src, size_t src_size, unsigned int width,
-                      unsigned int height, int quality, bool b_write_detect_image) {
+                      unsigned int height, int quality, bool enable_stripe_detect, bool b_write_detect_image) {
     struct jpeg_compress_struct cinfo;
     struct jpeg_error_mgr jerr;
     JSAMPROW row_pointer[height];
@@ -214,24 +214,29 @@ compress_yuyv_to_jpeg(unsigned char *dst, size_t dst_size, unsigned char *src, s
                 src += 4;
             }
         }
-
-        // perform per-line gradient detection
-        sf_find_gradients(&grad_list, &p_gray[0], width, line);
+        if (enable_stripe_detect) {
+            // perform per-line gradient detection
+            sf_find_gradients(&grad_list, &p_gray[0], width, line);
+        }
     }
 
-    /* Cluster gradients and extract features from gradient clusters */
-    sf_cluster_gradients(&grad_list, &cluster_list);
-    sf_find_features(&cluster_list, &feature_list);
+    if (enable_stripe_detect) {
+        /* Cluster gradients and extract features from gradient clusters */
+        sf_cluster_gradients(&grad_list, &cluster_list);
+        sf_find_features(&cluster_list, &feature_list);
 
-    if (b_write_detect_image) {
-        sf_write_image("./sf_image.bmp", width, height, p_gray_image, width * height, &grad_list, &cluster_list,
-                       &feature_list);
+        if (b_write_detect_image) {
+            sf_write_image("./sf_image.bmp", width, height, p_gray_image, width * height, &grad_list, &cluster_list,
+                           &feature_list);
+        }
+
+        /* Write feature list to JPEG_COM section of image */
+        const char *p_feature_string = sf_get_feature_list_data_string(&feature_list);
+
+        if (p_feature_string != NULL) {
+            jpeg_write_marker(&cinfo, JPEG_COM, (const JOCTET *) p_feature_string, strlen(p_feature_string));
+        }
     }
-
-    /* Write feature list to JPEG_COM section of image */
-    const char* p_feature_string = sf_get_feature_list_data_string(&feature_list);
-
-    jpeg_write_marker(&cinfo, JPEG_COM, (const JOCTET*)p_feature_string, strlen(p_feature_string));
 
     jpeg_write_scanlines(&cinfo, row_pointer, height);
 
